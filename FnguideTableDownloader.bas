@@ -17,10 +17,16 @@ Private Const REQUEST_RETRY_DELAY_MILLISECONDS As Long = 1000
 Private gStep As String
 Private gHasRequested As Boolean
 
+Private gRegExpDefault As Object
+Private gRegExpRow As Object
+Private gRegExpCell As Object
+Private gRegExpSpan As Object
+
 Public Sub DownloadFnguideTables()
     Dim code As String
     Dim reportGb As String
     Dim reportName As String
+    Dim originalCalculation As Long
 
     code = NormalizeStockCode(GetMainValue("C2"))
     reportGb = ResolveReportGb(GetMainValue("C3"), reportName)
@@ -30,6 +36,8 @@ Public Sub DownloadFnguideTables()
         Exit Sub
     End If
 
+    originalCalculation = Application.Calculation
+    Application.Calculation = xlCalculationManual
     Application.ScreenUpdating = False
     Application.DisplayAlerts = False
 
@@ -40,6 +48,7 @@ Public Sub DownloadFnguideTables()
 
     DownloadRatioStacked code, reportGb
 
+    Application.Calculation = originalCalculation
     Application.DisplayAlerts = True
     Application.ScreenUpdating = True
 
@@ -47,6 +56,7 @@ Public Sub DownloadFnguideTables()
     Exit Sub
 
 CleanFail:
+    Application.Calculation = originalCalculation
     Application.DisplayAlerts = True
     Application.ScreenUpdating = True
     MsgBox "Download failed: " & Err.Description & vbCrLf & "Step: " & gStep, vbCritical
@@ -161,6 +171,26 @@ Private Sub WaitBeforeRequest()
     If gHasRequested Then Sleep REQUEST_DELAY_MILLISECONDS
 End Sub
 
+Private Function RegExpDefault() As Object
+    If gRegExpDefault Is Nothing Then Set gRegExpDefault = CreateObject("VBScript.RegExp")
+    Set RegExpDefault = gRegExpDefault
+End Function
+
+Private Function RegExpRow() As Object
+    If gRegExpRow Is Nothing Then Set gRegExpRow = CreateObject("VBScript.RegExp")
+    Set RegExpRow = gRegExpRow
+End Function
+
+Private Function RegExpCell() As Object
+    If gRegExpCell Is Nothing Then Set gRegExpCell = CreateObject("VBScript.RegExp")
+    Set RegExpCell = gRegExpCell
+End Function
+
+Private Function RegExpSpan() As Object
+    If gRegExpSpan Is Nothing Then Set gRegExpSpan = CreateObject("VBScript.RegExp")
+    Set RegExpSpan = gRegExpSpan
+End Function
+
 Private Function ExtractBodyHtml(ByVal htmlText As String) As String
     Dim lowerText As String
     Dim p1 As Long
@@ -188,7 +218,7 @@ Private Function FindDataTables(ByVal htmlText As String) As Collection
     Dim tableHtml As String
     Dim firstTag As String
 
-    For Each m In RegexMatches(htmlText, "<table\b[\s\S]*?</table>")
+    For Each m In RegexMatches(htmlText, "<table\b[\s\S]*?</table>", RegExpRow())
         tableHtml = CStr(m.Value)
         firstTag = Left$(tableHtml, InStr(1, tableHtml, ">", vbBinaryCompare))
 
@@ -201,10 +231,10 @@ Private Function FindDataTables(ByVal htmlText As String) As Collection
     Set FindDataTables = result
 End Function
 
-Private Function RegexMatches(ByVal sourceText As String, ByVal pattern As String) As Object
+Private Function RegexMatches(ByVal sourceText As String, ByVal pattern As String, Optional ByVal reObj As Object = Nothing) As Object
     Dim re As Object
+    If reObj Is Nothing Then Set re = RegExpDefault() Else Set re = reObj
 
-    Set re = CreateObject("VBScript.RegExp")
     re.Global = True
     re.IgnoreCase = True
     re.MultiLine = True
@@ -378,7 +408,7 @@ Private Sub ApplyTableFormattingAt( _
     If rowCount <= 0 Then Exit Sub
     If startCol < 1 Or startCol > ws.Columns.Count Then Exit Sub
 
-    Set matches = RegexMatches(tbl, "<tr\b([^>]*)>[\s\S]*?</tr>")
+    Set matches = RegexMatches(tbl, "<tr\b([^>]*)>[\s\S]*?</tr>", RegExpRow())
     If matches Is Nothing Then Exit Sub
 
     r = 0
@@ -417,7 +447,9 @@ Private Function TableToArray(ByVal tbl As String) As Variant
     Dim rows As Object
     Dim cells As Object
 
-    Set rows = RegexMatches(tbl, "<tr\b[^>]*>[\s\S]*?</tr>")
+    tbl = PreCleanTableHtml(tbl)
+
+    Set rows = RegexMatches(tbl, "<tr\b[^>]*>[\s\S]*?</tr>", RegExpRow())
     rCount = rows.Count
     cCount = MaxColumnCount(tbl)
 
@@ -429,7 +461,7 @@ Private Function TableToArray(ByVal tbl As String) As Variant
         r = r + 1
         c = 1
 
-        Set cells = RegexMatches(CStr(rowMatch.Value), "<t[hd]\b([^>]*)>([\s\S]*?)</t[hd]>")
+        Set cells = RegexMatches(CStr(rowMatch.Value), "<t[hd]\b([^>]*)>([\s\S]*?)</t[hd]>", RegExpCell())
         For Each cellMatch In cells
             Do While c <= cCount And occupied(r, c)
                 c = c + 1
@@ -462,9 +494,9 @@ Private Function MaxColumnCount(ByVal tbl As String) As Long
     Dim n As Long
     Dim maxN As Long
 
-    For Each rowMatch In RegexMatches(tbl, "<tr\b[^>]*>[\s\S]*?</tr>")
+    For Each rowMatch In RegexMatches(tbl, "<tr\b[^>]*>[\s\S]*?</tr>", RegExpRow())
         n = 0
-        For Each cellMatch In RegexMatches(CStr(rowMatch.Value), "<t[hd]\b([^>]*)>[\s\S]*?</t[hd]>")
+        For Each cellMatch In RegexMatches(CStr(rowMatch.Value), "<t[hd]\b([^>]*)>[\s\S]*?</t[hd]>", RegExpCell())
             n = n + HtmlSpan(CStr(cellMatch.SubMatches(0)), "colspan")
         Next cellMatch
         If n > maxN Then maxN = n
@@ -476,7 +508,7 @@ End Function
 Private Function HtmlSpan(ByVal attrs As String, ByVal attrName As String) As Long
     Dim matches As Object
 
-    Set matches = RegexMatches(attrs, attrName & "\s*=\s*[""']?([0-9]+)")
+    Set matches = RegexMatches(attrs, attrName & "\s*=\s*[""']?([0-9]+)", RegExpSpan())
     If matches.Count = 0 Then
         HtmlSpan = 1
     Else
@@ -493,23 +525,28 @@ Private Function MinLong(ByVal a As Long, ByVal b As Long) As Long
     End If
 End Function
 
+Private Function PreCleanTableHtml(ByVal tbl As String) As String
+    Dim s As String
+    s = RegexReplace(tbl, "<script\b[\s\S]*?</script>", " ", RegExpDefault())
+    s = RegexReplace(s, "<style\b[\s\S]*?</style>", " ", RegExpDefault())
+    s = RegexReplace(s, "<dl\b[\s\S]*?</dl>", " ", RegExpDefault())
+    s = RegexReplace(s, "<a\b[^>]*\bbtn_acdopen\b[^>]*>[\s\S]*?</a>", " ", RegExpDefault())
+    s = RegexReplace(s, "<a\b[^>]*\bbtn_acdclose\b[^>]*>[\s\S]*?</a>", " ", RegExpDefault())
+    PreCleanTableHtml = s
+End Function
+
 Private Function HtmlToText(ByVal htmlText As String) As String
     Dim s As String
 
-    s = RegexReplace(htmlText, "<script\b[\s\S]*?</script>", " ")
-    s = RegexReplace(s, "<style\b[\s\S]*?</style>", " ")
-    s = RegexReplace(s, "<dl\b[\s\S]*?</dl>", " ")
-    s = RegexReplace(s, "<a\b[^>]*\bbtn_acdopen\b[^>]*>[\s\S]*?</a>", " ")
-    s = RegexReplace(s, "<a\b[^>]*\bbtn_acdclose\b[^>]*>[\s\S]*?</a>", " ")
-    s = RegexReplace(s, "<[^>]+>", " ")
+    s = RegexReplace(htmlText, "<[^>]+>", " ", RegExpDefault())
     s = HtmlDecodeBasic(s)
     HtmlToText = CleanCellText(s)
 End Function
 
-Private Function RegexReplace(ByVal sourceText As String, ByVal pattern As String, ByVal replacement As String) As String
+Private Function RegexReplace(ByVal sourceText As String, ByVal pattern As String, ByVal replacement As String, Optional ByVal reObj As Object = Nothing) As String
     Dim re As Object
+    If reObj Is Nothing Then Set re = RegExpDefault() Else Set re = reObj
 
-    Set re = CreateObject("VBScript.RegExp")
     re.Global = True
     re.IgnoreCase = True
     re.MultiLine = True
