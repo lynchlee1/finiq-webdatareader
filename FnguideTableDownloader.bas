@@ -68,12 +68,8 @@ Private Sub DownloadFinanceCombined(ByVal code As String, ByVal reportGb As Stri
     gStep = "Load financial statements"
     Set tables = FetchDataTables(BuildFinanceUrl(code, reportGb), 6, "financial statement tables")
 
-    gStep = "Write FS_Income"
-    WriteCombinedFinanceSheet "FS_Income", tables(1), tables(2)
-    gStep = "Write FS_Balance"
-    WriteCombinedFinanceSheet "FS_Balance", tables(3), tables(4)
-    gStep = "Write FS_CashFlow"
-    WriteCombinedFinanceSheet "FS_CashFlow", tables(5), tables(6)
+    gStep = "Write FS_Combined"
+    WriteSingleFinanceSheet "FS_Combined", tables
 End Sub
 
 Private Sub DownloadRatioStacked(ByVal code As String, ByVal reportGb As String)
@@ -261,26 +257,48 @@ Private Sub WriteTableToSheet(ByVal tbl As String, ByVal sheetName As String)
     ws.Rows(1).Font.Bold = True
 End Sub
 
-Private Sub WriteCombinedFinanceSheet( _
-    ByVal sheetName As String, _
-    ByVal annualTable As String, _
-    ByVal quarterTable As String)
-
+Private Sub WriteSingleFinanceSheet(ByVal sheetName As String, ByVal tables As Collection)
     Dim ws As Worksheet
-    Dim nextCol As Long
+    Dim nextRow As Long
+    Dim maxAnnualCols As Long
+    Dim colCount As Long
 
     gStep = "Get sheet " & sheetName
     Set ws = GetOrCreateSheet(sheetName)
     EnsureSheetWritable ws
     ClearOutputSheet ws
 
-    nextCol = 1
-    nextCol = WriteFinanceBlock(ws, annualTable, nextCol, KoreanAnnualText()) + 2
-    nextCol = WriteFinanceBlock(ws, quarterTable, nextCol, KoreanQuarterText()) + 2
+    maxAnnualCols = 0
+    
+    colCount = GetFinanceTableColCount(tables(1))
+    If colCount > maxAnnualCols Then maxAnnualCols = colCount
+    
+    colCount = GetFinanceTableColCount(tables(3))
+    If colCount > maxAnnualCols Then maxAnnualCols = colCount
+    
+    colCount = GetFinanceTableColCount(tables(5))
+    If colCount > maxAnnualCols Then maxAnnualCols = colCount
 
-    ws.Rows("1:2").Font.Bold = True
+    nextRow = 1
+    gStep = "Write IS to " & sheetName
+    nextRow = WriteFinanceBlockStacked(ws, tables(1), tables(2), "IS", nextRow, maxAnnualCols) + 2
+
+    gStep = "Write BS to " & sheetName
+    nextRow = WriteFinanceBlockStacked(ws, tables(3), tables(4), "BS", nextRow, maxAnnualCols) + 2
+
+    gStep = "Write CFS to " & sheetName
+    nextRow = WriteFinanceBlockStacked(ws, tables(5), tables(6), "CFS", nextRow, maxAnnualCols)
+
+    ws.Columns(1).HorizontalAlignment = xlCenter
+    ws.Columns(2 + maxAnnualCols + 2).HorizontalAlignment = xlCenter
     ws.Columns.AutoFit
 End Sub
+
+Private Function GetFinanceTableColCount(ByVal tbl As String) As Long
+    Dim data As Variant
+    data = RemoveColumnsByHeader(TableToArray(tbl), Array(KoreanYoYPercentText()))
+    GetFinanceTableColCount = UBound(data, 2)
+End Function
 
 Private Sub ClearOutputSheet(ByVal ws As Worksheet)
     gStep = "Clear sheet " & ws.Name
@@ -296,11 +314,59 @@ Private Sub EnsureSheetWritable(ByVal ws As Worksheet)
     End If
 End Sub
 
-Private Function WriteFinanceBlock( _
+Private Function WriteFinanceBlockStacked( _
+    ByVal ws As Worksheet, _
+    ByVal annualTable As String, _
+    ByVal quarterTable As String, _
+    ByVal classFlag As String, _
+    ByVal startRow As Long, _
+    ByVal maxAnnualCols As Long) As Long
+
+    Dim annualRows As Long
+    Dim annualCols As Long
+    Dim quarterRows As Long
+    Dim quarterCols As Long
+    Dim maxRows As Long
+    Dim r As Long
+    Dim quarterStartCol As Long
+
+    annualRows = WriteFinanceBlockAt(ws, annualTable, 2, startRow, KoreanAnnualText(), annualCols)
+    
+    quarterStartCol = 2 + maxAnnualCols + 3
+    quarterRows = WriteFinanceBlockAt(ws, quarterTable, quarterStartCol, startRow, KoreanQuarterText(), quarterCols)
+
+    If annualRows > quarterRows Then
+        maxRows = annualRows
+    Else
+        maxRows = quarterRows
+    End If
+
+    ' Annual classification (Column 1)
+    ws.Cells(startRow, 1).Value = KoreanClassificationText()
+    ws.Cells(startRow + 1, 1).Value = KoreanClassificationText()
+    For r = startRow + 2 To startRow + maxRows - 1
+        ws.Cells(r, 1).Value = classFlag
+    Next r
+
+    ' Quarter classification (Column quarterStartCol - 1)
+    ws.Cells(startRow, quarterStartCol - 1).Value = KoreanClassificationText()
+    ws.Cells(startRow + 1, quarterStartCol - 1).Value = KoreanClassificationText()
+    For r = startRow + 2 To startRow + maxRows - 1
+        ws.Cells(r, quarterStartCol - 1).Value = classFlag
+    Next r
+
+    ws.Rows(startRow & ":" & (startRow + 1)).Font.Bold = True
+
+    WriteFinanceBlockStacked = startRow + maxRows
+End Function
+
+Private Function WriteFinanceBlockAt( _
     ByVal ws As Worksheet, _
     ByVal tbl As String, _
     ByVal startCol As Long, _
-    ByVal periodFlag As String) As Long
+    ByVal startRow As Long, _
+    ByVal periodFlag As String, _
+    ByRef outColsN As Long) As Long
 
     Dim data As Variant
     Dim dataOut As Variant
@@ -314,17 +380,18 @@ Private Function WriteFinanceBlock( _
     data = RemoveColumnsByHeader(TableToArray(tbl), Array(KoreanYoYPercentText()))
     rowsN = UBound(data, 1)
     colsN = UBound(data, 2)
+    outColsN = colsN
 
     ReDim dataOut(1 To rowsN + 1, 1 To colsN)
     FillFlagRow dataOut, 1, colsN, periodFlag
     CopyArray data, dataOut, 2
 
     gStep = "Write block " & ws.Name & " / " & blockName
-    ws.Cells(1, startCol).Resize(rowsN + 1, colsN).Value = dataOut
+    ws.Cells(startRow, startCol).Resize(rowsN + 1, colsN).Value = dataOut
     gStep = "Format block " & ws.Name & " / " & blockName
-    ApplyTableFormattingAt ws, tbl, rowsN, startCol, 1
+    ApplyTableFormattingAt ws, tbl, rowsN, startCol, startRow
 
-    WriteFinanceBlock = startCol + colsN - 1
+    WriteFinanceBlockAt = rowsN + 1
 End Function
 
 Private Sub FillFlagRow(ByRef data As Variant, ByVal rowIndex As Long, ByVal colCount As Long, ByVal value As String)
@@ -714,4 +781,8 @@ End Function
 Private Function BuildRatioUrl(ByVal code As String, ByVal reportGb As String) As String
     BuildRatioUrl = BASE_URL & "SVD_FinanceRatio.asp?pGB=1&gicode=A" & code & _
                     "&cID=AA&MenuYn=Y&ReportGB=" & reportGb & "&NewMenuID=104&stkGb=701"
+End Function
+
+Private Function KoreanClassificationText() As String
+    KoreanClassificationText = ChrW(&HAD6C) & ChrW(&HBD84)
 End Function
