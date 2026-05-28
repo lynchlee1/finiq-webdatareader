@@ -1,4 +1,4 @@
-Attribute VB_Name = "OpenDartDownloader"
+﻿Attribute VB_Name = "OpenDartDownloader"
 Option Explicit
 
 ' OpenDART Financial Statement Downloader (Optimized Version)
@@ -29,13 +29,13 @@ Private Function DartCorpCodeSheetName() As String
 End Function
 
 Private Function DartCorpCodeInitLabel() As String
-    DartCorpCodeInitLabel = DartCorpCodeSheetName() & WText(&H0020, &HCD08, &HAE30, &HD654)
+    DartCorpCodeInitLabel = DartCorpCodeSheetName() & WText(&H20, &HCD08, &HAE30, &HD654)
 End Function
 
 Private Function DartCorpCodeInitDoneMessage(ByVal matchCount As Long) As String
     DartCorpCodeInitDoneMessage = DartCorpCodeInitLabel() & _
         WText(&H0020, &HC644, &HB8CC, &H002E, &H0020, &HCD1D, &H0020) & _
-        matchCount & _
+        CStr(matchCount) & _
         WText(&HAC1C, &HC758, &H0020, &HD68C, &HC0AC, &H0020, &HC815, &HBCF4, &HAC00, &H0020, &HC0DD, &HC131, &HB418, &HC5C8, &HC2B5, &HB2C8, &HB2E4, &H002E)
 End Function
 
@@ -54,11 +54,11 @@ Private Function DartCorpCodeEmptyMessage() As String
 End Function
 
 Private Function DartCorpCodeMissingDescription() As String
-    DartCorpCodeMissingDescription = DartCorpCodeSheetName() & WText(&H0020, &HC2DC, &HD2B8, &H0020, &HC5C6, &HC74C)
+    DartCorpCodeMissingDescription = DartCorpCodeSheetName() & WText(&H20, &HC2DC, &HD2B8, &H20, &HC5C6, &HC74C)
 End Function
 
 Private Function DartCorpCodeEmptyDescription() As String
-    DartCorpCodeEmptyDescription = DartCorpCodeSheetName() & WText(&H0020, &HC2DC, &HD2B8, &H0020, &HBE44, &HC5B4, &HC788, &HC74C)
+    DartCorpCodeEmptyDescription = DartCorpCodeSheetName() & WText(&H20, &HC2DC, &HD2B8, &H20, &HBE44, &HC5B4, &HC788, &HC74C)
 End Function
 
 Private Function KoreanAll() As String
@@ -114,7 +114,7 @@ Private Function KoreanAccountName() As String
 End Function
 
 Private Function KoreanQuarter1() As String
-    KoreanQuarter1 = WText(&H0031, &HBD84, &HAE30)
+    KoreanQuarter1 = WText(&H31, &HBD84, &HAE30)
 End Function
 
 Private Function KoreanHalf() As String
@@ -122,15 +122,15 @@ Private Function KoreanHalf() As String
 End Function
 
 Private Function KoreanQuarter2() As String
-    KoreanQuarter2 = WText(&H0032, &HBD84, &HAE30)
+    KoreanQuarter2 = WText(&H32, &HBD84, &HAE30)
 End Function
 
 Private Function KoreanQuarter3() As String
-    KoreanQuarter3 = WText(&H0033, &HBD84, &HAE30)
+    KoreanQuarter3 = WText(&H33, &HBD84, &HAE30)
 End Function
 
 Private Function KoreanQuarter4() As String
-    KoreanQuarter4 = WText(&H0034, &HBD84, &HAE30)
+    KoreanQuarter4 = WText(&H34, &HBD84, &HAE30)
 End Function
 
 Private Function KoreanBusiness() As String
@@ -138,19 +138,19 @@ Private Function KoreanBusiness() As String
 End Function
 
 Private Function KoreanUnregisteredKey() As String
-    KoreanUnregisteredKey = WText(&HBBF8, &HB4F1, &HB85D, &H0020, &HC778, &HC99D, &HD0A4)
+    KoreanUnregisteredKey = WText(&HBBF8, &HB4F1, &HB85D, &H20, &HC778, &HC99D, &HD0A4)
 End Function
 
 Private Function KoreanInvalidKey() As String
-    KoreanInvalidKey = WText(&HC0AC, &HC6A9, &HD560, &H0020, &HC218, &H0020, &HC5C6, &HB294, &H0020, &HC778, &HC99D, &HD0A4)
+    KoreanInvalidKey = WText(&HC0AC, &HC6A9, &HD560, &H20, &HC218, &H20, &HC5C6, &HB294, &H20, &HC778, &HC99D, &HD0A4)
 End Function
 
 Private Function KoreanOtherError() As String
-    KoreanOtherError = WText(&HAE30, &HD0C0, &H0020, &HC5D0, &HB7EC)
+    KoreanOtherError = WText(&HAE30, &HD0C0, &H20, &HC5D0, &HB7EC)
 End Function
 
 Private Function KoreanTargetCompany() As String
-    KoreanTargetCompany = WText(&HB300, &HC0C1, &H0020, &HAE30, &HC5C5, &H003A, &H0020)
+    KoreanTargetCompany = WText(&HB300, &HC0C1, &H20, &HAE30, &HC5C5, &H3A, &H20)
 End Function
 
 Public Sub TestLogging()
@@ -216,9 +216,9 @@ Public Sub DownloadDartData()
     End If
 
     ' 2. Read parameters
-    apiKey = Trim$(CStr(wsMain.Range("C2").Value))
-    targetDateStr = Trim$(CStr(wsMain.Range("C3").Value))
-    accountType = Trim$(CStr(wsMain.Range("C4").Value))
+    apiKey = Trim$(CStr(wsMain.Range("C2").value))
+    targetDateStr = Trim$(CStr(wsMain.Range("C3").value))
+    accountType = Trim$(CStr(wsMain.Range("C4").value))
 
     If Len(accountType) = 0 Then accountType = KoreanAll()
     isMajor = (LCase$(accountType) = KoreanMajor() Or LCase$(accountType) = KoreanSummary() Or LCase$(accountType) = "major" Or LCase$(accountType) = "summary")
@@ -320,6 +320,9 @@ Public Sub DownloadDartData()
     Dim cacheDict As Object
     Set cacheDict = CreateObject("Scripting.Dictionary")
 
+    Dim accountAliasMap As Object
+    Set accountAliasMap = LoadAccountAliasMap(wb)
+
     ' 5. Clear/Create Output Sheet
     On Error Resume Next
     Set wsOut = wb.Worksheets("OpenDART")
@@ -342,7 +345,7 @@ Public Sub DownloadDartData()
     compIdx = 0
 
     Dim mainRangeData As Variant
-    mainRangeData = wsMain.Range(wsMain.Cells(6, 2), wsMain.Cells(lastRow, 3)).Value
+    mainRangeData = wsMain.Range(wsMain.Cells(6, 2), wsMain.Cells(lastRow, 3)).value
 
     Dim idxRow As Long
     For idxRow = 1 To UBound(mainRangeData, 1)
@@ -415,6 +418,8 @@ Public Sub DownloadDartData()
             activeComps(compKey) = Array(compInfo(0), compInfo(1), ResolveAutoFsDiv(cacheDict, CStr(compKey)))
         End If
     Next compKey
+
+    NormalizeCacheAccountAliases cacheDict, accountAliasMap
 
     ' 9. Populate unique account lists from cacheDict (Supports new and old format)
     ' Loop over periods in reverse (latest first) to get accounts in the order of the latest report!
@@ -495,17 +500,18 @@ Public Sub DownloadDartData()
         metaArr(2, 1) = KoreanStockCode(): metaArr(2, 2) = "A" & sCode
         metaArr(3, 1) = KoreanCategory()
         metaArr(3, 2) = IIf(fDiv = "CFS", KoreanCfsStatement(), KoreanOfsStatement())
-        wsOut.Cells(1, startCol).Resize(3, 2).Value = metaArr
+        wsOut.Cells(1, startCol).Resize(3, 2).value = metaArr
 
         ' Write Table Headers in batch
         Dim headerArr() As Variant
-        ReDim headerArr(1 To 1, 1 To numPeriods + 2)
+        ReDim headerArr(1 To 1, 1 To numPeriods + 3)
         headerArr(1, 1) = KoreanCategory()
-        headerArr(1, 2) = KoreanAccountName()
+        headerArr(1, 2) = "account_id"
+        headerArr(1, 3) = KoreanAccountName()
         For p = 1 To numPeriods
-            headerArr(1, p + 2) = periodLabels(p)
+            headerArr(1, p + 3) = periodLabels(p)
         Next p
-        wsOut.Cells(5, startCol).Resize(1, numPeriods + 2).Value = headerArr
+        wsOut.Cells(5, startCol).Resize(1, numPeriods + 3).value = headerArr
 
         ' Write Accounts and values in batch
         Dim accCol As Collection
@@ -515,7 +521,7 @@ Public Sub DownloadDartData()
 
         If numRows > 0 Then
             Dim blockData() As Variant
-            ReDim blockData(1 To numRows, 1 To numPeriods + 2)
+            ReDim blockData(1 To numRows, 1 To numPeriods + 3)
 
             Dim rIdx As Long
             rIdx = 1
@@ -529,9 +535,19 @@ Public Sub DownloadDartData()
                 sjDiv = accParts(0)
                 accName = accParts(1)
 
+                ' Get account ID
+                Dim accIdKey As String
+                Dim accId As String
+                accId = ""
+                accIdKey = compKey & "|" & fDiv & "|" & sjDiv & "|" & accName & "|account_id"
+                If cacheDict.Exists(accIdKey) Then
+                    accId = cacheDict(accIdKey)
+                End If
+
                 ' Labels
                 blockData(rIdx, 1) = sjDiv
-                blockData(rIdx, 2) = accName
+                blockData(rIdx, 2) = accId
+                blockData(rIdx, 3) = accName
 
                 ' Values from cache (Fallback to old format)
                 For p = 1 To numPeriods
@@ -540,11 +556,11 @@ Public Sub DownloadDartData()
                     dataKeyOld = compKey & "|" & sjDiv & "|" & accName & "|" & CStr(periodYears(p)) & "|" & periodRepCodes(p)
 
                     If cacheDict.Exists(dataKeyNew) Then
-                        blockData(rIdx, p + 2) = CleanAmount(cacheDict(dataKeyNew))
+                        blockData(rIdx, p + 3) = CleanAmount(cacheDict(dataKeyNew))
                     ElseIf cacheDict.Exists(dataKeyOld) Then
-                        blockData(rIdx, p + 2) = CleanAmount(cacheDict(dataKeyOld))
+                        blockData(rIdx, p + 3) = CleanAmount(cacheDict(dataKeyOld))
                     Else
-                        blockData(rIdx, p + 2) = ""
+                        blockData(rIdx, p + 3) = ""
                     End If
                 Next p
 
@@ -552,14 +568,14 @@ Public Sub DownloadDartData()
             Next accItem
 
             ' Write blockData to worksheet in one go
-            wsOut.Cells(6, startCol).Resize(numRows, numPeriods + 2).Value = blockData
+            wsOut.Cells(6, startCol).Resize(numRows, numPeriods + 3).value = blockData
         End If
 
         ' Apply styling for this block
         FormatCompanyBlock wsOut, startCol, numPeriods, 5 + numRows
 
-        ' Advance columns (numPeriods + 2 data columns, and 1 blank separator column)
-        startCol = startCol + numPeriods + 3
+        ' Advance columns (numPeriods + 3 data columns, and 1 blank separator column)
+        startCol = startCol + numPeriods + 4
     Next compKey
 
     ' Delete DART_Cache sheet if it exists to clean up workbook
@@ -649,7 +665,7 @@ Public Sub InitializeCorpCodes()
         Exit Sub
     End If
 
-    apiKey = Trim$(CStr(wsMain.Range("C2").Value))
+    apiKey = Trim$(CStr(wsMain.Range("C2").value))
     If Len(apiKey) = 0 Then
         MsgBox "API Key in cell C2 of MAIN sheet is empty.", vbCritical
         Exit Sub
@@ -681,8 +697,8 @@ Public Sub InitializeCorpCodes()
     http.Open "GET", url, False
     http.Send
 
-    If http.Status <> 200 Then
-        MsgBox "Failed to download corpCode zip: HTTP " & http.Status, vbCritical
+    If http.status <> 200 Then
+        MsgBox "Failed to download corpCode zip: HTTP " & http.status, vbCritical
         Exit Sub
     End If
 
@@ -745,7 +761,7 @@ Public Sub InitializeCorpCodes()
     For i = 1 To UBound(parts)
         part = parts(i)
         pStock = InStr(part, "<stock_code>")
-        if pStock > 0 Then
+        If pStock > 0 Then
             pStockEnd = InStr(pStock + 12, part, "</stock_code>")
             If pStockEnd > pStock + 12 Then
                 currentStockCode = Trim$(Mid$(part, pStock + 12, pStockEnd - (pStock + 12)))
@@ -778,9 +794,9 @@ Public Sub InitializeCorpCodes()
     LogMsg "InitializeCorpCodes: Parsing loop finished, matchCount = " & matchCount
 
     ' Write to sheet in batch
-    wsCorp.Cells(1, 1).Value = "Stock Code"
-    wsCorp.Cells(1, 2).Value = "Corp Code"
-    wsCorp.Cells(1, 3).Value = "Corp Name"
+    wsCorp.Cells(1, 1).value = "Stock Code"
+    wsCorp.Cells(1, 2).value = "Corp Code"
+    wsCorp.Cells(1, 3).value = "Corp Name"
 
     Dim finalResults() As Variant
     If matchCount > 0 Then
@@ -791,7 +807,7 @@ Public Sub InitializeCorpCodes()
             finalResults(idx, 2) = results(idx, 2)
             finalResults(idx, 3) = results(idx, 3)
         Next idx
-        wsCorp.Cells(2, 1).Resize(matchCount, 3).Value = finalResults
+        wsCorp.Cells(2, 1).Resize(matchCount, 3).value = finalResults
         LogMsg "InitializeCorpCodes: Wrote " & matchCount & " listed companies to DART corp-code sheet"
     End If
 
@@ -834,7 +850,7 @@ Private Sub LoadCorpCodeMap(ByRef corpMap As Object, ByRef nameMap As Object)
     LogMsg "LoadCorpCodeMap: Loading cached mapping from DART corp-code sheet"
     ' Load mapping directly from the worksheet using 2D Variant Array (High Performance)
     Dim codeData As Variant
-    codeData = wsCorp.Range(wsCorp.Cells(1, 1), wsCorp.Cells(lastRow, 3)).Value
+    codeData = wsCorp.Range(wsCorp.Cells(1, 1), wsCorp.Cells(lastRow, 3)).value
 
     Dim i As Long
     Dim sCode As String, cCode As String, cName As String
@@ -998,12 +1014,14 @@ Private Sub SendBatchRequest(ByVal apiKey As String, ByVal chunkCodes As Collect
         Dim node As Object
         Dim xmlCorpCode As String, xmlFsDiv As String, sjDiv As String, accName As String
         Dim thAmt As String, frAmt As String, bfeAmt As String
+        Dim accountId As String
 
         For Each node In listNodes
             xmlCorpCode = Trim$(GetNodeTextSafe(node, "corp_code"))
             xmlFsDiv = Trim$(GetNodeTextSafe(node, "fs_div"))
             sjDiv = NormalizeStatementDiv(GetNodeTextSafe(node, "sj_div"))
             accName = Trim$(GetNodeTextSafe(node, "account_nm"))
+            accountId = Trim$(GetNodeTextSafe(node, "account_id"))
 
             If Len(xmlCorpCode) > 0 Then
                 If reprtCode = "11011" Then ' Annual
@@ -1018,6 +1036,13 @@ Private Sub SendBatchRequest(ByVal apiKey As String, ByVal chunkCodes As Collect
                     thAmt = GetNodeTextSafe(node, "thstrm_amount")
 
                     SaveCacheValue cacheDict, xmlCorpCode, xmlFsDiv, sjDiv, accName, yr, reprtCode, thAmt
+                End If
+
+                ' Cache the account ID
+                If Len(sjDiv) > 0 And Len(accName) > 0 Then
+                    Dim accIdKey As String
+                    accIdKey = xmlCorpCode & "|" & xmlFsDiv & "|" & sjDiv & "|" & accName & "|account_id"
+                    cacheDict(accIdKey) = accountId
                 End If
             End If
         Next node
@@ -1109,6 +1134,7 @@ Private Function SendSingleRequest(ByVal apiKey As String, ByVal corpCode As Str
         Dim node As Object
         Dim xmlCorpCode As String, xmlFsDiv As String, sjDiv As String, accName As String
         Dim thAmt As String, frAmt As String, bfeAmt As String
+        Dim accountId As String
 
         For Each node In listNodes
             xmlCorpCode = Trim$(GetNodeTextSafe(node, "corp_code"))
@@ -1116,6 +1142,7 @@ Private Function SendSingleRequest(ByVal apiKey As String, ByVal corpCode As Str
             If Len(xmlFsDiv) = 0 Then xmlFsDiv = fsDiv
             sjDiv = NormalizeStatementDiv(GetNodeTextSafe(node, "sj_div"))
             accName = Trim$(GetNodeTextSafe(node, "account_nm"))
+            accountId = Trim$(GetNodeTextSafe(node, "account_id"))
 
             If Len(xmlCorpCode) > 0 And Len(sjDiv) > 0 And Len(accName) > 0 Then
                 If reprtCode = "11011" Then ' Annual
@@ -1131,6 +1158,11 @@ Private Function SendSingleRequest(ByVal apiKey As String, ByVal corpCode As Str
 
                     SaveCacheValue cacheDict, xmlCorpCode, xmlFsDiv, sjDiv, accName, yr, reprtCode, thAmt
                 End If
+
+                ' Cache the account ID
+                Dim accIdKey As String
+                accIdKey = xmlCorpCode & "|" & xmlFsDiv & "|" & sjDiv & "|" & accName & "|account_id"
+                cacheDict(accIdKey) = accountId
             End If
         Next node
 
@@ -1258,6 +1290,168 @@ Private Sub MarkFetched(ByRef cacheDict As Object, ByVal corpCode As String, ByV
 ' newCache(key) = "Fetched" (removed)
 End Sub
 
+' Reads the Alias sheet: MAIN is the canonical account name, columns 1-10 are aliases.
+Private Function LoadAccountAliasMap(ByVal wb As Workbook) As Object
+    Dim aliasMap As Object
+    Set aliasMap = CreateObject("Scripting.Dictionary")
+
+    Dim wsAlias As Worksheet
+    On Error Resume Next
+    Set wsAlias = wb.Worksheets("Alias")
+    On Error GoTo 0
+
+    If wsAlias Is Nothing Then
+        Set LoadAccountAliasMap = aliasMap
+        Exit Function
+    End If
+
+    Dim lastRow As Long
+    Dim lastCol As Long
+    Dim mainCol As Long
+    Dim c As Long
+
+    lastCol = wsAlias.Cells(1, wsAlias.Columns.Count).End(xlToLeft).Column
+    mainCol = 0
+    For c = 1 To lastCol
+        If UCase$(Trim$(CStr(wsAlias.Cells(1, c).value))) = "MAIN" Then
+            mainCol = c
+            Exit For
+        End If
+    Next c
+    If mainCol = 0 Then mainCol = 2
+
+    lastRow = wsAlias.Cells(wsAlias.Rows.Count, mainCol).End(xlUp).Row
+    If lastRow < 2 Then
+        Set LoadAccountAliasMap = aliasMap
+        Exit Function
+    End If
+
+    Dim aliasData As Variant
+    aliasData = wsAlias.Range(wsAlias.Cells(1, 1), wsAlias.Cells(lastRow, lastCol)).value
+
+    Dim r As Long
+    Dim mainName As String
+    Dim aliasName As String
+
+    For r = 2 To UBound(aliasData, 1)
+        mainName = Trim$(CStr(aliasData(r, mainCol)))
+        If Len(mainName) > 0 Then
+            AddAliasMapping aliasMap, mainName, mainName
+            For c = mainCol + 1 To UBound(aliasData, 2)
+                aliasName = Trim$(CStr(aliasData(r, c)))
+                If Len(aliasName) > 0 Then
+                    AddAliasMapping aliasMap, aliasName, mainName
+                End If
+            Next c
+        End If
+    Next r
+
+    LogMsg "LoadAccountAliasMap: Loaded " & aliasMap.Count & " account aliases"
+    Set LoadAccountAliasMap = aliasMap
+End Function
+
+Private Sub AddAliasMapping(ByRef aliasMap As Object, ByVal aliasName As String, ByVal mainName As String)
+    Dim aliasKey As String
+    aliasKey = AccountAliasKey(aliasName)
+    If Len(aliasKey) = 0 Then Exit Sub
+
+    If Not aliasMap.Exists(aliasKey) Then
+        aliasMap(aliasKey) = mainName
+    End If
+End Sub
+
+Private Function AccountAliasKey(ByVal accountName As String) As String
+    accountName = Replace(accountName, vbCr, " ")
+    accountName = Replace(accountName, vbLf, " ")
+    AccountAliasKey = UCase$(Trim$(accountName))
+End Function
+
+Private Function CanonicalAccountName(ByVal aliasMap As Object, ByVal accountName As String) As String
+    Dim aliasKey As String
+    aliasKey = AccountAliasKey(accountName)
+
+    If Not aliasMap Is Nothing Then
+        If aliasMap.Exists(aliasKey) Then
+            CanonicalAccountName = CStr(aliasMap(aliasKey))
+            Exit Function
+        End If
+    End If
+
+    CanonicalAccountName = Trim$(accountName)
+End Function
+
+Private Sub NormalizeCacheAccountAliases(ByRef cacheDict As Object, ByVal aliasMap As Object)
+    If aliasMap Is Nothing Then Exit Sub
+    If aliasMap.Count = 0 Then Exit Sub
+
+    Dim normalizedCache As Object
+    Set normalizedCache = CreateObject("Scripting.Dictionary")
+
+    Dim cKey As Variant
+    Dim parts() As String
+    Dim newKey As String
+    Dim canonicalName As String
+
+    For Each cKey In cacheDict.Keys
+        parts = Split(CStr(cKey), "|")
+        If UBound(parts) = 5 Then
+            canonicalName = CanonicalAccountName(aliasMap, parts(3))
+            newKey = parts(0) & "|" & parts(1) & "|" & parts(2) & "|" & canonicalName & "|" & parts(4) & "|" & parts(5)
+            MergeCacheValue normalizedCache, newKey, CStr(cacheDict(cKey)), parts(3)
+        ElseIf UBound(parts) = 4 And parts(4) = "account_id" Then
+            canonicalName = CanonicalAccountName(aliasMap, parts(3))
+            newKey = parts(0) & "|" & parts(1) & "|" & parts(2) & "|" & canonicalName & "|account_id"
+            normalizedCache(newKey) = cacheDict(cKey)
+        Else
+            normalizedCache(CStr(cKey)) = cacheDict(cKey)
+        End If
+    Next cKey
+
+    Set cacheDict = normalizedCache
+    LogMsg "NormalizeCacheAccountAliases: Normalized cache keys = " & cacheDict.Count
+End Sub
+
+Private Sub MergeCacheValue(ByRef cacheDict As Object, ByVal key As String, ByVal value As String, ByVal originalAccountName As String)
+    If Not cacheDict.Exists(key) Then
+        cacheDict(key) = value
+    ElseIf IsBlankAmountText(CStr(cacheDict(key))) And Not IsBlankAmountText(value) Then
+        cacheDict(key) = value
+    ElseIf Not IsBlankAmountText(CStr(cacheDict(key))) And Not IsBlankAmountText(value) Then
+        If CleanAmountCompareText(CStr(cacheDict(key))) <> CleanAmountCompareText(value) Then
+            cacheDict(UniqueAliasConflictKey(cacheDict, key, originalAccountName)) = value
+        End If
+    End If
+End Sub
+
+Private Function UniqueAliasConflictKey(ByVal cacheDict As Object, ByVal key As String, ByVal originalAccountName As String) As String
+    Dim parts() As String
+    parts = Split(key, "|")
+
+    Dim baseKey As String
+    baseKey = parts(0) & "|" & parts(1) & "|" & parts(2) & "|" & parts(3) & " (" & originalAccountName & ")" & "|" & parts(4) & "|" & parts(5)
+
+    Dim candidateKey As String
+    Dim n As Long
+    candidateKey = baseKey
+    n = 2
+    Do While cacheDict.Exists(candidateKey)
+        candidateKey = parts(0) & "|" & parts(1) & "|" & parts(2) & "|" & parts(3) & " (" & originalAccountName & " " & CStr(n) & ")" & "|" & parts(4) & "|" & parts(5)
+        n = n + 1
+    Loop
+
+    UniqueAliasConflictKey = candidateKey
+End Function
+
+Private Function CleanAmountCompareText(ByVal amountText As String) As String
+    amountText = Replace(amountText, ",", "")
+    CleanAmountCompareText = Trim$(amountText)
+End Function
+
+Private Function IsBlankAmountText(ByVal amountText As String) As Boolean
+    amountText = Trim$(amountText)
+    IsBlankAmountText = (Len(amountText) = 0 Or amountText = "-")
+End Function
+
 ' Fetches URL and parses XML, returns status code
 Private Function FetchDartXml(ByVal url As String, ByRef outStatus As String) As Object
     Dim http As Object
@@ -1265,8 +1459,8 @@ Private Function FetchDartXml(ByVal url As String, ByRef outStatus As String) As
     http.Open "GET", url, False
     http.Send
 
-    If http.Status <> 200 Then
-        Err.Raise vbObjectError + 3001, , "HTTP Error " & http.Status & " fetching OpenDART."
+    If http.status <> 200 Then
+        Err.Raise vbObjectError + 3001, , "HTTP Error " & http.status & " fetching OpenDART."
     End If
 
     ' Decode responseBody using UTF-8 to prevent Korean character corruption
@@ -1290,7 +1484,7 @@ Private Function FetchDartXml(ByVal url As String, ByRef outStatus As String) As
 
     ' Load the UTF-8 text into the XML document
     If Not xmlDoc.LoadXML(responseText) Then
-        Err.Raise vbObjectError + 3002, , "Failed to load XML content: " & xmlDoc.parseError.reason
+        Err.Raise vbObjectError + 3002, , "Failed to load XML content: " & xmlDoc.ParseError.reason
     End If
 
     Dim statusNode As Object
@@ -1354,7 +1548,7 @@ End Sub
 Private Sub FormatCompanyBlock(ByVal ws As Worksheet, ByVal startCol As Long, ByVal numP As Integer, ByVal endRow As Long)
     Dim cellRange As Range
     Dim lastCol As Long
-    lastCol = startCol + 1 + numP
+    lastCol = startCol + 2 + numP
 
     ' Title headers
     ws.Range(ws.Cells(1, startCol), ws.Cells(3, lastCol)).Font.Name = "Malgun Gothic"
@@ -1380,12 +1574,13 @@ Private Sub FormatCompanyBlock(ByVal ws As Worksheet, ByVal startCol As Long, By
     cellRange.Font.Name = "Malgun Gothic"
     cellRange.Font.Size = 10
 
-    ' Align accounts and classification
+    ' Align accounts, account ID, and classification
     ws.Range(ws.Cells(6, startCol), ws.Cells(endRow, startCol)).HorizontalAlignment = xlCenter
-    ws.Range(ws.Cells(6, startCol + 1), ws.Cells(endRow, startCol + 1)).HorizontalAlignment = xlLeft
+    ws.Range(ws.Cells(6, startCol + 1), ws.Cells(endRow, startCol + 1)).HorizontalAlignment = xlLeft ' account_id
+    ws.Range(ws.Cells(6, startCol + 2), ws.Cells(endRow, startCol + 2)).HorizontalAlignment = xlLeft ' accName
 
     Dim c As Long
-    For c = startCol + 2 To lastCol
+    For c = startCol + 3 To lastCol
         Dim dataRange As Range
         Set dataRange = ws.Range(ws.Cells(6, c), ws.Cells(endRow, c))
         dataRange.HorizontalAlignment = xlRight
