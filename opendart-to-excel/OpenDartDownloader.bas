@@ -4,7 +4,7 @@ Option Explicit
 ' OpenDART Financial Statement Downloader (Optimized Version)
 ' Downloads financial statements from OpenDART in batches to maximize performance.
 ' Reads and writes worksheets using 2D Variant Arrays to avoid COM overhead.
-' Caches company mappings in "DART ≥ª∫Œƒ⁄µÂ" sheet to run instantly after first load.
+' Caches company mappings in "DART ÎÇ¥Î∂ÄÏΩîÎìú" sheet to run instantly after first load.
 ' Caches fetched financial statement records in-memory during execution.
 
 #If VBA7 Then
@@ -23,7 +23,7 @@ Public Sub TestAdodb()
     LogMsg "TestAdodb: Started"
     Dim cachedXmlPath As String
     cachedXmlPath = Environ("TEMP") & "\CORPCODE.xml"
-    
+
     LogMsg "TestAdodb: Opening stream"
     Dim stream As Object
     Set stream = CreateObject("ADODB.Stream")
@@ -32,11 +32,11 @@ Public Sub TestAdodb()
     stream.Open
     stream.LoadFromFile cachedXmlPath
     LogMsg "TestAdodb: Loaded from file"
-    
+
     Dim xmlContent As String
     xmlContent = stream.ReadText(-1)
     LogMsg "TestAdodb: Read text, size = " & Len(xmlContent)
-    
+
     stream.Close
     LogMsg "TestAdodb: Finished"
 End Sub
@@ -54,79 +54,79 @@ Public Sub DownloadDartData()
     Dim stockCode As String
     Dim corpCode As String
     Dim fsDivStr As String
-    Dim fsDiv As String ' "CFS" or "OFS"
-    
+    Dim fsDiv As String ' "CFS", "OFS", or "AUTO"
+
     Dim originalCalculation As Long
     Dim compKey As Variant
     Dim compInfo As Variant
     Dim cKey As Variant
     Dim parts() As String
-    
+
     ' 1. Initialize Workbook and Sheet references
     Set wb = ActiveWorkbook
     If wb Is Nothing Then Set wb = ThisWorkbook
-    
+
     LogMsg "DownloadDartData: Macro execution started"
-    
+
     On Error Resume Next
     Set wsMain = wb.Worksheets("MAIN")
     On Error GoTo 0
-    
+
     If wsMain Is Nothing Then
         MsgBox "MAIN sheet was not found. Please create a sheet named 'MAIN'.", vbCritical
         Exit Sub
     End If
-    
+
     ' 2. Read parameters
     apiKey = Trim$(CStr(wsMain.Range("C2").Value))
     targetDateStr = Trim$(CStr(wsMain.Range("C3").Value))
     accountType = Trim$(CStr(wsMain.Range("C4").Value))
-    
-    If Len(accountType) = 0 Then accountType = "¿¸√º"
-    isMajor = (LCase$(accountType) = "¡÷ø‰" Or LCase$(accountType) = "ø‰æ‡" Or LCase$(accountType) = "major" Or LCase$(accountType) = "summary")
-    
+
+    If Len(accountType) = 0 Then accountType = "Ï†ÑÏ≤¥"
+    isMajor = (LCase$(accountType) = "Ï£ºÏöî" Or LCase$(accountType) = "ÏöîÏïΩ" Or LCase$(accountType) = "major" Or LCase$(accountType) = "summary")
+
     If Len(apiKey) = 0 Then
         MsgBox "API Key in cell C2 of MAIN sheet is empty.", vbCritical
         Exit Sub
     End If
-    
+
     If Len(targetDateStr) = 0 Then
         MsgBox "Target date/quarter in cell C3 of MAIN sheet is empty.", vbCritical
         Exit Sub
     End If
-    
+
     ' Parse target date
     Dim targetYear As Integer
     Dim targetReprtCode As String
     Dim targetPeriodName As String
-    
+
     On Error GoTo ParseError
     ParseTargetDate targetDateStr, targetYear, targetReprtCode, targetPeriodName
     On Error GoTo CleanFail
-    
+
     ' Determine periods
     Dim isAnnual As Boolean
     isAnnual = (targetReprtCode = "11011")
-    
+
     Dim numPeriods As Integer
     Dim periodLabels() As String
     Dim periodYears() As Integer
     Dim periodRepCodes() As String
-    
+
     If isAnnual Then
         numPeriods = 3
         ReDim periodLabels(1 To 3)
         ReDim periodYears(1 To 3)
         ReDim periodRepCodes(1 To 3)
-        
-        periodLabels(1) = CStr(targetYear - 2) & "≥‚ ø¨∞£"
-        periodLabels(2) = CStr(targetYear - 1) & "≥‚ ø¨∞£"
-        periodLabels(3) = CStr(targetYear) & "≥‚ ø¨∞£"
-        
+
+        periodLabels(1) = CStr(targetYear - 2) & "ÎÖÑ Ïó∞Í∞Ñ"
+        periodLabels(2) = CStr(targetYear - 1) & "ÎÖÑ Ïó∞Í∞Ñ"
+        periodLabels(3) = CStr(targetYear) & "ÎÖÑ Ïó∞Í∞Ñ"
+
         periodYears(1) = targetYear - 2
         periodYears(2) = targetYear - 1
         periodYears(3) = targetYear
-        
+
         periodRepCodes(1) = "11011"
         periodRepCodes(2) = "11011"
         periodRepCodes(3) = "11011"
@@ -135,53 +135,53 @@ Public Sub DownloadDartData()
         ReDim periodLabels(1 To 5)
         ReDim periodYears(1 To 5)
         ReDim periodRepCodes(1 To 5)
-        
-        periodLabels(1) = CStr(targetYear - 3) & "≥‚ ø¨∞£"
-        periodLabels(2) = CStr(targetYear - 2) & "≥‚ ø¨∞£"
-        periodLabels(3) = CStr(targetYear - 1) & "≥‚ ø¨∞£"
-        periodLabels(4) = CStr(targetYear - 1) & "≥‚ " & targetPeriodName
-        periodLabels(5) = CStr(targetYear) & "≥‚ " & targetPeriodName
-        
+
+        periodLabels(1) = CStr(targetYear - 3) & "ÎÖÑ Ïó∞Í∞Ñ"
+        periodLabels(2) = CStr(targetYear - 2) & "ÎÖÑ Ïó∞Í∞Ñ"
+        periodLabels(3) = CStr(targetYear - 1) & "ÎÖÑ Ïó∞Í∞Ñ"
+        periodLabels(4) = CStr(targetYear - 1) & "ÎÖÑ " & targetPeriodName
+        periodLabels(5) = CStr(targetYear) & "ÎÖÑ " & targetPeriodName
+
         periodYears(1) = targetYear - 3
         periodYears(2) = targetYear - 2
         periodYears(3) = targetYear - 1
         periodYears(4) = targetYear - 1
         periodYears(5) = targetYear
-        
+
         periodRepCodes(1) = "11011"
         periodRepCodes(2) = "11011"
         periodRepCodes(3) = "11011"
         periodRepCodes(4) = targetReprtCode
         periodRepCodes(5) = targetReprtCode
     End If
-    
+
     ' Get target stock codes
     lastRow = wsMain.Cells(wsMain.Rows.Count, 2).End(xlUp).Row
     If lastRow < 6 Then
         MsgBox "No stock codes found in MAIN column B starting from row 6.", vbExclamation
         Exit Sub
     End If
-    
+
     ' 3. Initialize mapping (Stock Code to Corp Code and Name)
     Dim corpMap As Object
     Dim nameMap As Object
     Set corpMap = CreateObject("Scripting.Dictionary")
     Set nameMap = CreateObject("Scripting.Dictionary")
-    
+
     LogMsg "DownloadDartData: Starting mapping initialization"
     LoadCorpCodeMap corpMap, nameMap
     LogMsg "DownloadDartData: Mapping initialization complete. Companies in map: " & corpMap.Count
-    
+
     ' Save application states
     originalCalculation = Application.Calculation
     Application.Calculation = xlCalculationManual
     Application.ScreenUpdating = False
     Application.DisplayAlerts = False
-    
+
     ' 4. Initialize Cache Dict (In-Memory cache for deduplication during current run)
     Dim cacheDict As Object
     Set cacheDict = CreateObject("Scripting.Dictionary")
-    
+
     ' 5. Clear/Create Output Sheet
     On Error Resume Next
     Set wsOut = wb.Worksheets("OpenDART")
@@ -192,20 +192,20 @@ Public Sub DownloadDartData()
         wsOut.Name = "OpenDART"
     End If
     On Error GoTo CleanFail
-    
+
     ' Dictionaries to store company account lists and active company metadata
     Dim corpAccounts As Object
     Dim activeComps As Object
     Set corpAccounts = CreateObject("Scripting.Dictionary")
     Set activeComps = CreateObject("Scripting.Dictionary")
-    
+
     ' 6. Collect active companies and resolve their fsDiv (Fast Range Read)
     Dim compIdx As Long
     compIdx = 0
-    
+
     Dim mainRangeData As Variant
     mainRangeData = wsMain.Range(wsMain.Cells(6, 2), wsMain.Cells(lastRow, 3)).Value
-    
+
     Dim idxRow As Long
     For idxRow = 1 To UBound(mainRangeData, 1)
         stockCode = Trim$(CStr(mainRangeData(idxRow, 1)))
@@ -214,35 +214,37 @@ Public Sub DownloadDartData()
             If corpMap.Exists(stockCode) Then
                 corpCode = corpMap(stockCode)
                 fsDivStr = Trim$(CStr(mainRangeData(idxRow, 2)))
-                
-                ' Resolve consolidated vs separate
-                If fsDivStr = "∫∞µµ" Or UCase$(fsDivStr) = "OFS" Or UCase$(fsDivStr) = "SEP" Or UCase$(fsDivStr) = "SEPARATE" Then
+
+                ' Resolve consolidated vs separate. Blank means try consolidated first, then separate on 013.
+                If fsDivStr = "Î≥ÑÎèÑ" Or UCase$(fsDivStr) = "OFS" Or UCase$(fsDivStr) = "SEP" Or UCase$(fsDivStr) = "SEPARATE" Then
                     fsDiv = "OFS"
+                ElseIf fsDivStr = "Ïó∞Í≤∞" Or UCase$(fsDivStr) = "CFS" Or UCase$(fsDivStr) = "CONSOLIDATED" Then
+                    fsDiv = "CFS"
                 Else
-                    fsDiv = "CFS" ' default is consolidated
+                    fsDiv = "AUTO"
                 End If
-                
+
                 activeComps(corpCode) = Array(stockCode, nameMap(corpCode), fsDiv)
                 Set corpAccounts(corpCode) = New Collection
                 compIdx = compIdx + 1
             End If
         End If
     Next idxRow
-    
+
     ' 7. Batch fetch period data for all periods (No Sleep Delay)
     Dim p As Integer
     For p = 1 To numPeriods
         Dim fetchList As Collection
         Set fetchList = New Collection
-        
+
         For Each compKey In activeComps.Keys
             compInfo = activeComps(compKey)
             fsDiv = compInfo(2)
-            
+
             Dim statusKeyNew As String, statusKeyOld As String
             statusKeyNew = compKey & "|" & fsDiv & "|" & CStr(periodYears(p)) & "|" & periodRepCodes(p)
             statusKeyOld = compKey & "|" & CStr(periodYears(p)) & "|" & periodRepCodes(p)
-            
+
             Dim isCached As Boolean
             isCached = False
             If cacheDict.Exists(statusKeyNew) Then
@@ -250,134 +252,170 @@ Public Sub DownloadDartData()
             ElseIf cacheDict.Exists(statusKeyOld) Then
                 isCached = (cacheDict(statusKeyOld) = "Fetched")
             End If
-            
+
             If Not isCached Then
                 fetchList.Add compKey
             End If
         Next compKey
-        
+
         If fetchList.Count > 0 Then
+            ' Fallback: no data for this period - skip and leave blank
+            On Error Resume Next
             FetchPeriodDataBatch apiKey, fetchList, periodYears(p), periodRepCodes(p), cacheDict, isMajor, activeComps
+            If Err.Number <> 0 Then
+                LogMsg "Period fallback: year=" & periodYears(p) & " reprt=" & periodRepCodes(p) & " skipped. Error=" & Err.Description
+                Err.Clear
+            End If
+            On Error GoTo CleanFail
         End If
     Next p
-    
+
     ' 8. Populate unique account lists from cacheDict (Supports new and old format)
     ' Loop over periods in reverse (latest first) to get accounts in the order of the latest report!
     For Each compKey In activeComps.Keys
         compInfo = activeComps(compKey)
         fsDiv = compInfo(2)
-        
+
         Dim pRev As Integer
         Dim targetYr As Integer
         Dim targetRepCode As String
-        
-        For pRev = numPeriods To 1 Step -1
-            targetYr = periodYears(pRev)
-            targetRepCode = periodRepCodes(pRev)
-            
-            For Each cKey In cacheDict.Keys
-                parts = Split(cKey, "|")
-                If UBound(parts) = 5 Then ' New format: corpCode|fsDiv|sjDiv|accName|yr|repCode
-                    If parts(0) = compKey And parts(1) = fsDiv Then
-                        If CInt(parts(4)) = targetYr And parts(5) = targetRepCode Then
-                            AddUnique corpAccounts(compKey), parts(2) & " | " & parts(3)
+
+        Dim stmtIdx As Integer
+        Dim targetSjDiv As String
+        For stmtIdx = 1 To 3
+            targetSjDiv = StatementDivByOrder(stmtIdx)
+            For pRev = numPeriods To 1 Step -1
+                targetYr = periodYears(pRev)
+                targetRepCode = periodRepCodes(pRev)
+
+                For Each cKey In cacheDict.Keys
+                    parts = Split(cKey, "|")
+                    If UBound(parts) = 5 Then ' New format: corpCode|fsDiv|sjDiv|accName|yr|repCode
+                        If parts(0) = compKey And FsDivMatches(parts(1), fsDiv) Then
+                            If parts(2) = targetSjDiv And CInt(parts(4)) = targetYr And parts(5) = targetRepCode Then
+                                AddUnique corpAccounts(compKey), parts(2) & " | " & parts(3)
+                            End If
+                        End If
+                    ElseIf UBound(parts) = 4 Then ' Old format: corpCode|sjDiv|accName|yr|repCode
+                        If parts(0) = compKey Then
+                            If parts(1) = targetSjDiv And CInt(parts(3)) = targetYr And parts(4) = targetRepCode Then
+                                AddUnique corpAccounts(compKey), parts(1) & " | " & parts(2)
+                            End If
                         End If
                     End If
-                ElseIf UBound(parts) = 4 Then ' Old format: corpCode|sjDiv|accName|yr|repCode
-                    If parts(0) = compKey Then
-                        If CInt(parts(3)) = targetYr And parts(4) = targetRepCode Then
-                            AddUnique corpAccounts(compKey), parts(1) & " | " & parts(2)
-                        End If
-                    End If
-                End If
-            Next cKey
-        Next pRev
+                Next cKey
+            Next pRev
+        Next stmtIdx
     Next compKey
-    
+
     ' 9. Write results to Excel using 2D Variant Arrays (Fast batch writing)
     Dim startCol As Long
     startCol = 1
-    
+
     For Each compKey In activeComps.Keys
         compInfo = activeComps(compKey)
-        
+
         Dim sCode As String, cName As String, fDiv As String
         sCode = compInfo(0)
         cName = compInfo(1)
         fDiv = compInfo(2)
-        
+
         ' Write Company Header Info in batch
         Dim metaArr(1 To 3, 1 To 2) As Variant
-        metaArr(1, 1) = "±‚æ˜∏Ì": metaArr(1, 2) = cName
-        metaArr(2, 1) = "¡æ∏Òƒ⁄µÂ": metaArr(2, 2) = "A" & sCode
-        metaArr(3, 1) = "±∏∫–": metaArr(3, 2) = IIf(fDiv = "CFS", "ø¨∞·¿Áπ´¡¶«•", "∫∞µµ¿Áπ´¡¶«•")
+        metaArr(1, 1) = "Í∏∞ÏóÖÎ™Ö": metaArr(1, 2) = cName
+        metaArr(2, 1) = "Ï¢ÖÎ™©ÏΩîÎìú": metaArr(2, 2) = "A" & sCode
+        metaArr(3, 1) = "Íµ¨Î∂Ñ"
+        If fDiv = "AUTO" Then
+            metaArr(3, 2) = "Ïó∞Í≤∞ Ïö∞ÏÑ†(Î≥ÑÎèÑ fallback)"
+        Else
+            metaArr(3, 2) = IIf(fDiv = "CFS", "Ïó∞Í≤∞Ïû¨Î¨¥Ï†úÌëú", "Î≥ÑÎèÑÏû¨Î¨¥Ï†úÌëú")
+        End If
         wsOut.Cells(1, startCol).Resize(3, 2).Value = metaArr
-        
+
         ' Write Table Headers in batch
         Dim headerArr() As Variant
         ReDim headerArr(1 To 1, 1 To numPeriods + 2)
-        headerArr(1, 1) = "±∏∫–"
-        headerArr(1, 2) = "∞Ë¡§∞˙∏Ò"
+        headerArr(1, 1) = "Íµ¨Î∂Ñ"
+        headerArr(1, 2) = "Í≥ÑÏ†ïÍ≥ºÎ™©"
         For p = 1 To numPeriods
             headerArr(1, p + 2) = periodLabels(p)
         Next p
         wsOut.Cells(5, startCol).Resize(1, numPeriods + 2).Value = headerArr
-        
+
         ' Write Accounts and values in batch
         Dim accCol As Collection
         Set accCol = corpAccounts(compKey)
         Dim numRows As Long
         numRows = accCol.Count
-        
+
         If numRows > 0 Then
             Dim blockData() As Variant
             ReDim blockData(1 To numRows, 1 To numPeriods + 2)
-            
+
             Dim rIdx As Long
             rIdx = 1
-            
+
             Dim accItem As Variant
             For Each accItem In accCol
                 Dim accParts() As String
                 accParts = Split(accItem, " | ")
-                
+
                 Dim sjDiv As String, accName As String
                 sjDiv = accParts(0)
                 accName = accParts(1)
-                
+
                 ' Labels
                 blockData(rIdx, 1) = sjDiv
                 blockData(rIdx, 2) = accName
-                
+
                 ' Values from cache (Fallback to old format)
                 For p = 1 To numPeriods
                     Dim dataKeyNew As String, dataKeyOld As String
-                    dataKeyNew = compKey & "|" & fDiv & "|" & sjDiv & "|" & accName & "|" & CStr(periodYears(p)) & "|" & periodRepCodes(p)
-                    dataKeyOld = compKey & "|" & sjDiv & "|" & accName & "|" & CStr(periodYears(p)) & "|" & periodRepCodes(p)
-                    
-                    If cacheDict.Exists(dataKeyNew) Then
-                        blockData(rIdx, p + 2) = CleanAmount(cacheDict(dataKeyNew))
-                    ElseIf cacheDict.Exists(dataKeyOld) Then
-                        blockData(rIdx, p + 2) = CleanAmount(cacheDict(dataKeyOld))
+                    If fDiv = "AUTO" Then
+                        dataKeyNew = compKey & "|CFS|" & sjDiv & "|" & accName & "|" & CStr(periodYears(p)) & "|" & periodRepCodes(p)
+                        If cacheDict.Exists(dataKeyNew) Then
+                            blockData(rIdx, p + 2) = CleanAmount(cacheDict(dataKeyNew))
+                        Else
+                            dataKeyNew = compKey & "|OFS|" & sjDiv & "|" & accName & "|" & CStr(periodYears(p)) & "|" & periodRepCodes(p)
+                            If cacheDict.Exists(dataKeyNew) Then
+                                blockData(rIdx, p + 2) = CleanAmount(cacheDict(dataKeyNew))
+                            Else
+                                dataKeyOld = compKey & "|" & sjDiv & "|" & accName & "|" & CStr(periodYears(p)) & "|" & periodRepCodes(p)
+                                If cacheDict.Exists(dataKeyOld) Then
+                                    blockData(rIdx, p + 2) = CleanAmount(cacheDict(dataKeyOld))
+                                Else
+                                    blockData(rIdx, p + 2) = ""
+                                End If
+                            End If
+                        End If
                     Else
-                        blockData(rIdx, p + 2) = ""
+                        dataKeyNew = compKey & "|" & fDiv & "|" & sjDiv & "|" & accName & "|" & CStr(periodYears(p)) & "|" & periodRepCodes(p)
+                        dataKeyOld = compKey & "|" & sjDiv & "|" & accName & "|" & CStr(periodYears(p)) & "|" & periodRepCodes(p)
+
+                        If cacheDict.Exists(dataKeyNew) Then
+                            blockData(rIdx, p + 2) = CleanAmount(cacheDict(dataKeyNew))
+                        ElseIf cacheDict.Exists(dataKeyOld) Then
+                            blockData(rIdx, p + 2) = CleanAmount(cacheDict(dataKeyOld))
+                        Else
+                            blockData(rIdx, p + 2) = ""
+                        End If
                     End If
                 Next p
-                
+
                 rIdx = rIdx + 1
             Next accItem
-            
+
             ' Write blockData to worksheet in one go
             wsOut.Cells(6, startCol).Resize(numRows, numPeriods + 2).Value = blockData
         End If
-        
+
         ' Apply styling for this block
         FormatCompanyBlock wsOut, startCol, numPeriods, 5 + numRows
-        
+
         ' Advance columns (numPeriods + 2 data columns, and 1 blank separator column)
         startCol = startCol + numPeriods + 3
     Next compKey
-    
+
     ' Delete DART_Cache sheet if it exists to clean up workbook
     On Error Resume Next
     Dim wsCache As Worksheet
@@ -386,22 +424,22 @@ Public Sub DownloadDartData()
         wsCache.Delete
     End If
     On Error GoTo 0
-    
+
     ' Final auto-fit
     wsOut.Columns.AutoFit
-    
+
     ' Restore states
     Application.Calculation = originalCalculation
     Application.DisplayAlerts = True
     Application.ScreenUpdating = True
-    
+
     MsgBox "DART financial table download complete. Processed " & compIdx & " companies.", vbInformation
     Exit Sub
-    
+
 ParseError:
-    MsgBox "Failed to parse target date in MAIN!C3. Ensure format is like '2026≥‚ 1∫–±‚'.", vbCritical
+    MsgBox "Failed to parse target date in MAIN!C3. Ensure format is like '2026ÎÖÑ 1Î∂ÑÍ∏∞'.", vbCritical
     Exit Sub
-    
+
 CleanFail:
     Application.Calculation = originalCalculation
     Application.DisplayAlerts = True
@@ -409,12 +447,12 @@ CleanFail:
     MsgBox "Download failed: " & Err.Description, vbCritical
 End Sub
 
-' Parses dates like "2026≥‚ 1∫–±‚"
+' Parses dates like "2026ÎÖÑ 1Î∂ÑÍ∏∞"
 Private Sub ParseTargetDate(ByVal dateStr As String, ByRef outYear As Integer, ByRef outReprtCode As String, ByRef outPeriodName As String)
     Dim regEx As Object
     Set regEx = CreateObject("VBScript.RegExp")
     regEx.Pattern = "([0-9]{4})"
-    
+
     Dim matches As Object
     Set matches = regEx.Execute(dateStr)
     If matches.Count > 0 Then
@@ -422,89 +460,89 @@ Private Sub ParseTargetDate(ByVal dateStr As String, ByRef outYear As Integer, B
     Else
         Err.Raise vbObjectError + 2001, , "Invalid year format in date string."
     End If
-    
-    If InStr(dateStr, "1∫–±‚") > 0 Or InStr(dateStr, "1Q") > 0 Then
+
+    If InStr(dateStr, "1Î∂ÑÍ∏∞") > 0 Or InStr(dateStr, "1Q") > 0 Then
         outReprtCode = "11013"
-        outPeriodName = "1∫–±‚"
-    ElseIf InStr(dateStr, "π›±‚") > 0 Or InStr(dateStr, "2∫–±‚") > 0 Or InStr(dateStr, "2Q") > 0 Then
+        outPeriodName = "1Î∂ÑÍ∏∞"
+    ElseIf InStr(dateStr, "Î∞òÍ∏∞") > 0 Or InStr(dateStr, "2Î∂ÑÍ∏∞") > 0 Or InStr(dateStr, "2Q") > 0 Then
         outReprtCode = "11012"
-        outPeriodName = "π›±‚"
-    ElseIf InStr(dateStr, "3∫–±‚") > 0 Or InStr(dateStr, "3Q") > 0 Then
+        outPeriodName = "Î∞òÍ∏∞"
+    ElseIf InStr(dateStr, "3Î∂ÑÍ∏∞") > 0 Or InStr(dateStr, "3Q") > 0 Then
         outReprtCode = "11014"
-        outPeriodName = "3∫–±‚"
-    ElseIf InStr(dateStr, "4∫–±‚") > 0 Or InStr(dateStr, "4Q") > 0 Or InStr(dateStr, "ø¨∞£") > 0 Or InStr(dateStr, "ªÁæ˜") > 0 Then
+        outPeriodName = "3Î∂ÑÍ∏∞"
+    ElseIf InStr(dateStr, "4Î∂ÑÍ∏∞") > 0 Or InStr(dateStr, "4Q") > 0 Or InStr(dateStr, "Ïó∞Í∞Ñ") > 0 Or InStr(dateStr, "ÏÇ¨ÏóÖ") > 0 Then
         outReprtCode = "11011"
-        outPeriodName = "ø¨∞£"
+        outPeriodName = "Ïó∞Í∞Ñ"
     Else
         ' Fallback to annual
         outReprtCode = "11011"
-        outPeriodName = "ø¨∞£"
+        outPeriodName = "Ïó∞Í∞Ñ"
     End If
 End Sub
 
 ' Downloads and builds the KOSPI/KOSDAQ listed company corp code map in DART_CorpCodes sheet
-' Downloads and builds the KOSPI/KOSDAQ listed company corp code map in DART ≥ª∫Œƒ⁄µÂ sheet
+' Downloads and builds the KOSPI/KOSDAQ listed company corp code map in DART ÎÇ¥Î∂ÄÏΩîÎìú sheet
 Public Sub InitializeCorpCodes()
     Dim wb As Workbook
     Dim wsMain As Worksheet
     Dim wsCorp As Worksheet
     Dim apiKey As String
     Dim fso As Object
-    
+
     Set wb = ActiveWorkbook
     If wb Is Nothing Then Set wb = ThisWorkbook
-    
+
     LogMsg "InitializeCorpCodes: Started"
-    
+
     On Error Resume Next
     Set wsMain = wb.Worksheets("MAIN")
     On Error GoTo 0
-    
+
     If wsMain Is Nothing Then
         MsgBox "MAIN sheet was not found. Please create a sheet named 'MAIN'.", vbCritical
         Exit Sub
     End If
-    
+
     apiKey = Trim$(CStr(wsMain.Range("C2").Value))
     If Len(apiKey) = 0 Then
         MsgBox "API Key in cell C2 of MAIN sheet is empty.", vbCritical
         Exit Sub
     End If
-    
-    ' Create or clear the DART ≥ª∫Œƒ⁄µÂ worksheet
+
+    ' Create or clear the DART ÎÇ¥Î∂ÄÏΩîÎìú worksheet
     On Error Resume Next
-    Set wsCorp = wb.Worksheets("DART ≥ª∫Œƒ⁄µÂ")
+    Set wsCorp = wb.Worksheets("DART ÎÇ¥Î∂ÄÏΩîÎìú")
     On Error GoTo 0
-    
+
     If wsCorp Is Nothing Then
         Set wsCorp = wb.Worksheets.Add(After:=wsMain)
-        wsCorp.Name = "DART ≥ª∫Œƒ⁄µÂ"
+        wsCorp.Name = "DART ÎÇ¥Î∂ÄÏΩîÎìú"
     Else
         wsCorp.UsedRange.Clear
     End If
-    
+
     MsgBox "First-time setup: Downloading Dart corporate codes... This may take a few seconds.", vbInformation
-    
+
     ' Download zip
     Dim cachedXmlPath As String
     cachedXmlPath = Environ("TEMP") & "\CORPCODE.xml"
-    
+
     Dim url As String
     url = BASE_API_URL & "corpCode.xml?crtfc_key=" & apiKey
-    
+
     Dim http As Object
     Set http = CreateObject("MSXML2.ServerXMLHTTP.6.0")
     http.Open "GET", url, False
     http.Send
-    
+
     If http.Status <> 200 Then
         MsgBox "Failed to download corpCode zip: HTTP " & http.Status, vbCritical
         Exit Sub
     End If
-    
+
     Dim zipPath As String
     zipPath = Environ("TEMP") & "\corpCode.zip"
-    
+
     Dim stream As Object
     Set stream = CreateObject("ADODB.Stream")
     stream.Type = 1 ' Binary
@@ -512,12 +550,12 @@ Public Sub InitializeCorpCodes()
     stream.Write http.ResponseBody
     stream.SaveToFile zipPath, 2 ' Overwrite
     stream.Close
-    
+
     ' Unzip CORPCODE.xml
     Dim tempDir As String
     tempDir = Environ("TEMP") & "\corpCode_extracted"
     UnzipFile zipPath, tempDir
-    
+
     Set fso = CreateObject("Scripting.FileSystemObject")
     If fso.FileExists(tempDir & "\CORPCODE.xml") Then
         If fso.FileExists(cachedXmlPath) Then fso.DeleteFile cachedXmlPath, True
@@ -526,29 +564,29 @@ Public Sub InitializeCorpCodes()
         MsgBox "CORPCODE.xml not found in ZIP.", vbCritical
         Exit Sub
     End If
-    
+
     ' Clean up zip files
     On Error Resume Next
     fso.DeleteFile zipPath, True
     fso.DeleteFolder tempDir, True
     On Error GoTo 0
-    
+
     LogMsg "InitializeCorpCodes: Reading CORPCODE.xml"
     Dim xmlContent As String
     xmlContent = ReadUTF8File(cachedXmlPath)
     LogMsg "InitializeCorpCodes: Loaded XML, length = " & Len(xmlContent)
-    
+
     ' Split by <list> tag to process each company block
     Dim parts() As String
     parts = Split(xmlContent, "<list>")
     LogMsg "InitializeCorpCodes: Split into " & UBound(parts) & " blocks, starting parsing loop"
-    
+
     ' Pre-allocate results array to size 10000 (enough for ~4000 listed companies)
     Dim results() As Variant
     ReDim results(1 To 10000, 1 To 3)
     Dim matchCount As Long
     matchCount = 0
-    
+
     Dim i As Long
     Dim part As String
     Dim pStock As Long, pStockEnd As Long
@@ -557,7 +595,7 @@ Public Sub InitializeCorpCodes()
     Dim currentStockCode As String
     Dim currentCorpCode As String
     Dim currentCorpName As String
-    
+
     For i = 1 To UBound(parts)
         part = parts(i)
         pStock = InStr(part, "<stock_code>")
@@ -574,7 +612,7 @@ Public Sub InitializeCorpCodes()
                             currentCorpCode = Trim$(Mid$(part, pCorp + 11, pCorpEnd - (pCorp + 11)))
                         End If
                     End If
-                    
+
                     pName = InStr(part, "<corp_name>")
                     If pName > 0 Then
                         pNameEnd = InStr(pName + 11, part, "</corp_name>")
@@ -582,7 +620,7 @@ Public Sub InitializeCorpCodes()
                             currentCorpName = Trim$(Mid$(part, pName + 11, pNameEnd - (pName + 11)))
                         End If
                     End If
-                    
+
                     matchCount = matchCount + 1
                     results(matchCount, 1) = "'" & currentStockCode
                     results(matchCount, 2) = "'" & currentCorpCode
@@ -592,12 +630,12 @@ Public Sub InitializeCorpCodes()
         End If
     Next i
     LogMsg "InitializeCorpCodes: Parsing loop finished, matchCount = " & matchCount
-    
+
     ' Write to sheet in batch
     wsCorp.Cells(1, 1).Value = "Stock Code"
     wsCorp.Cells(1, 2).Value = "Corp Code"
     wsCorp.Cells(1, 3).Value = "Corp Name"
-    
+
     Dim finalResults() As Variant
     If matchCount > 0 Then
         ReDim finalResults(1 To matchCount, 1 To 3)
@@ -608,60 +646,60 @@ Public Sub InitializeCorpCodes()
             finalResults(idx, 3) = results(idx, 3)
         Next idx
         wsCorp.Cells(2, 1).Resize(matchCount, 3).Value = finalResults
-        LogMsg "InitializeCorpCodes: Wrote " & matchCount & " listed companies to DART ≥ª∫Œƒ⁄µÂ sheet"
+        LogMsg "InitializeCorpCodes: Wrote " & matchCount & " listed companies to DART ÎÇ¥Î∂ÄÏΩîÎìú sheet"
     End If
-    
+
     ' Delete CORPCODE.xml to save disk space
     On Error Resume Next
     fso.DeleteFile cachedXmlPath, True
     On Error GoTo 0
-    
+
     wsCorp.Columns.AutoFit
     LogMsg "InitializeCorpCodes: Finished"
-    MsgBox "DART ≥ª∫Œƒ⁄µÂ √ ±‚»≠ øœ∑·. √— " & matchCount & "∞≥¿« »∏ªÁ ¡§∫∏∞° ª˝º∫µ«æ˙Ω¿¥œ¥Ÿ.", vbInformation
+    MsgBox "DART ÎÇ¥Î∂ÄÏΩîÎìú Ï¥àÍ∏∞Ìôî ÏôÑÎ£å. Ï¥ù " & matchCount & "Í∞úÏùò ÌöåÏÇ¨ Ï†ïÎ≥¥Í∞Ä ÏÉùÏÑ±ÎêòÏóàÏäµÎãàÎã§.", vbInformation
 End Sub
 
-' Loads corporate code mapping from DART ≥ª∫Œƒ⁄µÂ sheet
+' Loads corporate code mapping from DART ÎÇ¥Î∂ÄÏΩîÎìú sheet
 Private Sub LoadCorpCodeMap(ByRef corpMap As Object, ByRef nameMap As Object)
     LogMsg "LoadCorpCodeMap: Started"
     Dim wb As Workbook
     Set wb = ActiveWorkbook
     If wb Is Nothing Then Set wb = ThisWorkbook
-    
+
     Dim wsCorp As Worksheet
     On Error Resume Next
-    Set wsCorp = wb.Worksheets("DART ≥ª∫Œƒ⁄µÂ")
+    Set wsCorp = wb.Worksheets("DART ÎÇ¥Î∂ÄÏΩîÎìú")
     On Error GoTo 0
-    
+
     If wsCorp Is Nothing Then
-        MsgBox "DART ≥ª∫Œƒ⁄µÂ Ω√∆Æ∞° ¡∏¿Á«œ¡ˆ æ Ω¿¥œ¥Ÿ. ∏’¿˙ 'DART ≥ª∫Œƒ⁄µÂ √ ±‚»≠' ∏≈≈©∑Œ∏¶ Ω««‡«ÿ ¡÷ººø‰.", vbCritical
-        Err.Raise vbObjectError + 2004, , "DART ≥ª∫Œƒ⁄µÂ Ω√∆Æ æ¯¿Ω"
+        MsgBox "DART ÎÇ¥Î∂ÄÏΩîÎìú ÏãúÌä∏Í∞Ä Ï°¥Ïû¨ÌïòÏßÄ ÏïäÏäµÎãàÎã§. Î®ºÏ†Ä 'DART ÎÇ¥Î∂ÄÏΩîÎìú Ï¥àÍ∏∞Ìôî' Îß§ÌÅ¨Î°úÎ•º Ïã§ÌñâÌï¥ Ï£ºÏÑ∏Ïöî.", vbCritical
+        Err.Raise vbObjectError + 2004, , "DART ÎÇ¥Î∂ÄÏΩîÎìú ÏãúÌä∏ ÏóÜÏùå"
         Exit Sub
     End If
-    
+
     Dim lastRow As Long
     lastRow = wsCorp.Cells(wsCorp.Rows.Count, 1).End(xlUp).Row
     If lastRow < 2 Then
-        MsgBox "DART ≥ª∫Œƒ⁄µÂ Ω√∆Æ∞° ∫ÒæÓ ¿÷Ω¿¥œ¥Ÿ. ∏’¿˙ 'DART ≥ª∫Œƒ⁄µÂ √ ±‚»≠' ∏≈≈©∑Œ∏¶ Ω««‡«ÿ ¡÷ººø‰.", vbCritical
-        Err.Raise vbObjectError + 2005, , "DART ≥ª∫Œƒ⁄µÂ Ω√∆Æ ∫ÒæÓ¿÷¿Ω"
+        MsgBox "DART ÎÇ¥Î∂ÄÏΩîÎìú ÏãúÌä∏Í∞Ä ÎπÑÏñ¥ ÏûàÏäµÎãàÎã§. Î®ºÏ†Ä 'DART ÎÇ¥Î∂ÄÏΩîÎìú Ï¥àÍ∏∞Ìôî' Îß§ÌÅ¨Î°úÎ•º Ïã§ÌñâÌï¥ Ï£ºÏÑ∏Ïöî.", vbCritical
+        Err.Raise vbObjectError + 2005, , "DART ÎÇ¥Î∂ÄÏΩîÎìú ÏãúÌä∏ ÎπÑÏñ¥ÏûàÏùå"
         Exit Sub
     End If
-    
-    LogMsg "LoadCorpCodeMap: Loading cached mapping from DART ≥ª∫Œƒ⁄µÂ sheet"
+
+    LogMsg "LoadCorpCodeMap: Loading cached mapping from DART ÎÇ¥Î∂ÄÏΩîÎìú sheet"
     ' Load mapping directly from the worksheet using 2D Variant Array (High Performance)
     Dim codeData As Variant
     codeData = wsCorp.Range(wsCorp.Cells(1, 1), wsCorp.Cells(lastRow, 3)).Value
-    
+
     Dim i As Long
     Dim sCode As String, cCode As String, cName As String
     For i = 2 To UBound(codeData, 1)
         sCode = Trim$(CStr(codeData(i, 1)))
         cCode = Trim$(CStr(codeData(i, 2)))
         cName = Trim$(CStr(codeData(i, 3)))
-        
+
         If Len(sCode) < 6 And Len(sCode) > 0 Then sCode = String(6 - Len(sCode), "0") & sCode
         If Len(cCode) < 8 And Len(cCode) > 0 Then cCode = String(8 - Len(cCode), "0") & cCode
-        
+
         If Len(sCode) = 6 And Len(cCode) = 8 Then
             corpMap(sCode) = cCode
             nameMap(cCode) = cName
@@ -676,7 +714,7 @@ Private Function ExtractTagValue(ByVal line As String, ByVal tagName As String) 
     Dim startTag As String, endTag As String
     startTag = "<" & tagName & ">"
     endTag = "</" & tagName & ">"
-    
+
     Dim p1 As Long, p2 As Long
     p1 = InStr(line, startTag)
     If p1 > 0 Then
@@ -693,36 +731,36 @@ End Function
 Private Sub UnzipFile(ByVal zipPath As String, ByVal destDir As String)
     Dim fso As Object
     Set fso = CreateObject("Scripting.FileSystemObject")
-    
+
     If fso.FolderExists(destDir) Then
         fso.DeleteFolder destDir, True
     End If
     fso.CreateFolder destDir
-    
+
     Dim shellApp As Object
     Set shellApp = CreateObject("Shell.Application")
-    
+
     Dim zipFolder As Object
     Set zipFolder = shellApp.Namespace(CVar(zipPath))
     Dim destFolder As Object
     Set destFolder = shellApp.Namespace(CVar(destDir))
-    
+
     If zipFolder Is Nothing Or destFolder Is Nothing Then
         Err.Raise vbObjectError + 4001, , "Failed to initialize Shell Namespace."
     End If
-    
+
     destFolder.CopyHere zipFolder.Items, 20
-    
+
     Dim xmlPath As String
     xmlPath = destDir & "\CORPCODE.xml"
-    
+
     Dim i As Integer
     For i = 1 To 100
         If fso.FileExists(xmlPath) Then Exit Sub
         Sleep 100
         DoEvents
     Next i
-    
+
     If Not fso.FileExists(xmlPath) Then
         Err.Raise vbObjectError + 4002, , "Failed to unzip CORPCODE.xml (Timeout)."
     End If
@@ -735,15 +773,15 @@ End Sub
 ' Fetches period financial statement in batch using multi-company API or single-company API if not present in cache
 Private Sub FetchPeriodDataBatch(ByVal apiKey As String, ByVal corpCodes As Collection, ByVal yr As Integer, ByVal reprtCode As String, ByRef cacheDict As Object, ByVal isMajor As Boolean, ByRef activeComps As Object)
     If corpCodes.Count = 0 Then Exit Sub
-    
+
     If isMajor Then
         Dim chunkCodes As Collection
         Set chunkCodes = New Collection
-        
+
         Dim i As Long
         For i = 1 To corpCodes.Count
             chunkCodes.Add corpCodes(i)
-            
+
             ' Chunk of 100 or last item
             If chunkCodes.Count = 100 Or i = corpCodes.Count Then
                 SendBatchRequest apiKey, chunkCodes, yr, reprtCode, cacheDict, activeComps
@@ -759,8 +797,23 @@ Private Sub FetchPeriodDataBatch(ByVal apiKey As String, ByVal corpCodes As Coll
             compKey = corpCodes(j)
             compInfo = activeComps(compKey)
             fsDiv = compInfo(2)
-            
-            SendSingleRequest apiKey, compKey, fsDiv, yr, reprtCode, cacheDict, activeComps
+
+            On Error Resume Next
+            Dim fetchStatus As String
+            If fsDiv = "AUTO" Then
+                fetchStatus = SendSingleRequest(apiKey, compKey, "CFS", yr, reprtCode, cacheDict, activeComps)
+                If Err.Number = 0 And fetchStatus = "013" Then
+                    LogMsg "Auto fs fallback: corp=" & compKey & " year=" & yr & " reprt=" & reprtCode & " CFS returned 013; trying OFS"
+                    fetchStatus = SendSingleRequest(apiKey, compKey, "OFS", yr, reprtCode, cacheDict, activeComps)
+                End If
+            Else
+                fetchStatus = SendSingleRequest(apiKey, compKey, fsDiv, yr, reprtCode, cacheDict, activeComps)
+            End If
+            If Err.Number <> 0 Then
+                LogMsg "Single fetch skipped: corp=" & compKey & " fsDiv=" & fsDiv & " year=" & yr & " reprt=" & reprtCode & " error=" & Err.Description
+                Err.Clear
+            End If
+            On Error GoTo 0
             Sleep 200 ' 0.2s delay to prevent temporary API blocking
         Next j
     End If
@@ -770,7 +823,7 @@ End Sub
 Private Sub SendBatchRequest(ByVal apiKey As String, ByVal chunkCodes As Collection, ByVal yr As Integer, ByVal reprtCode As String, ByRef cacheDict As Object, ByRef activeComps As Object)
     Dim corpCodesStr As String
     corpCodesStr = ""
-    
+
     Dim item As Variant
     For Each item In chunkCodes
         If Len(corpCodesStr) > 0 Then
@@ -779,10 +832,10 @@ Private Sub SendBatchRequest(ByVal apiKey As String, ByVal chunkCodes As Collect
             corpCodesStr = CStr(item)
         End If
     Next item
-    
+
     Dim url As String
     url = BASE_API_URL & "fnlttMultiAcnt.xml?crtfc_key=" & apiKey & "&corp_code=" & corpCodesStr & "&bsns_year=" & yr & "&reprt_code=" & reprtCode
-    
+
     LogMsg "SendBatchRequest: Fetching URL: " & url
     Dim status As String
     Dim xmlDoc As Object
@@ -790,52 +843,49 @@ Private Sub SendBatchRequest(ByVal apiKey As String, ByVal chunkCodes As Collect
     Set xmlDoc = FetchDartXml(url, status)
     On Error GoTo 0
     LogMsg "SendBatchRequest: Fetch status = " & status
-    
+
     Dim cCode As Variant
     If status = "000" Then
         Dim listNodes As Object
         Set listNodes = xmlDoc.SelectNodes("/result/list")
-        
+
         Dim node As Object
         Dim xmlCorpCode As String, xmlFsDiv As String, sjDiv As String, accName As String
         Dim thAmt As String, frAmt As String, bfeAmt As String
-        
+
         For Each node In listNodes
             xmlCorpCode = Trim$(GetNodeTextSafe(node, "corp_code"))
             xmlFsDiv = Trim$(GetNodeTextSafe(node, "fs_div"))
-            sjDiv = Trim$(GetNodeTextSafe(node, "sj_div"))
+            sjDiv = NormalizeStatementDiv(GetNodeTextSafe(node, "sj_div"))
             accName = Trim$(GetNodeTextSafe(node, "account_nm"))
-            
+
             If Len(xmlCorpCode) > 0 Then
                 If reprtCode = "11011" Then ' Annual
                     thAmt = GetNodeTextSafe(node, "thstrm_amount")
                     frAmt = GetNodeTextSafe(node, "frmtrm_amount")
                     bfeAmt = GetNodeTextSafe(node, "bfefrmtrm_amount")
-                    
+
                     SaveCacheValue cacheDict, xmlCorpCode, xmlFsDiv, sjDiv, accName, yr, "11011", thAmt
                     SaveCacheValue cacheDict, xmlCorpCode, xmlFsDiv, sjDiv, accName, yr - 1, "11011", frAmt
                     SaveCacheValue cacheDict, xmlCorpCode, xmlFsDiv, sjDiv, accName, yr - 2, "11011", bfeAmt
                 Else ' Quarter
                     thAmt = GetNodeTextSafe(node, "thstrm_amount")
-                    frAmt = GetNodeTextSafe(node, "frmtrm_amount")
-                    
+
                     SaveCacheValue cacheDict, xmlCorpCode, xmlFsDiv, sjDiv, accName, yr, reprtCode, thAmt
-                    SaveCacheValue cacheDict, xmlCorpCode, xmlFsDiv, sjDiv, accName, yr - 1, reprtCode, frAmt
                 End If
             End If
         Next node
-        
+
         ' Mark all requested companies in this chunk as successfully fetched for both CFS and OFS
         For Each cCode In chunkCodes
             MarkFetched cacheDict, CStr(cCode), "CFS", yr, reprtCode
             MarkFetched cacheDict, CStr(cCode), "OFS", yr, reprtCode
         Next cCode
-        
-    ElseIf status = "010" Or status = "011" Or status = "013" Then
-        ' Daily limit or authentication error: Do not cache status, throw error
+
+    ElseIf status = "010" Or status = "011" Then
+        ' Authentication error: Do not cache status, throw error
         Dim compDetails As String
         compDetails = ""
-        Dim cCode As Variant
         Dim compName As String, stockCode As String
         For Each cCode In chunkCodes
             compName = "Unknown"
@@ -851,36 +901,53 @@ Private Sub SendBatchRequest(ByVal apiKey As String, ByVal chunkCodes As Collect
             End If
             compDetails = compDetails & compName & "(" & stockCode & ")"
         Next cCode
-        
+
         Dim statusDesc As String
         Select Case status
-            Case "010": statusDesc = "πÃµÓ∑œ ¿Œ¡ı≈∞"
-            Case "011": statusDesc = "ªÁøÎ«“ ºˆ æ¯¥¬ ¿Œ¡ı≈∞"
-            Case "013": statusDesc = "ø‰√ª ¡¶«— √ ∞˙"
-            Case Else: statusDesc = "±‚≈∏ ø°∑Ø"
+            Case "010": statusDesc = "ÎØ∏Îì±Î°ù Ïù∏Ï¶ùÌÇ§"
+            Case "011": statusDesc = "ÏÇ¨Ïö©Ìï† Ïàò ÏóÜÎäî Ïù∏Ï¶ùÌÇ§"
+            Case Else: statusDesc = "Í∏∞ÌÉÄ ÏóêÎü¨"
         End Select
-        
+
         Err.Raise vbObjectError + 3010, , "DART Key Error: " & status & " (" & statusDesc & ")" & vbCrLf & _
-                                         "¥ÎªÛ ±‚æ˜: " & compDetails
+                                         "ÎåÄÏÉÅ Í∏∞ÏóÖ: " & compDetails
     Else
-        ' "020" No Data or other status codes: Cache as fetched so we do not query again
+        ' "013"/"020" No Data or other status codes: Cache as fetched so we do not query again
         For Each cCode In chunkCodes
             MarkFetched cacheDict, CStr(cCode), "CFS", yr, reprtCode
             MarkFetched cacheDict, CStr(cCode), "OFS", yr, reprtCode
         Next cCode
     End If
-    
+
     Exit Sub
-    
+
 FetchError:
     LogMsg "SendBatchRequest FetchError: batch " & corpCodesStr & " / " & yr & " / " & reprtCode & " Error: " & Err.Description
+    Dim fbCode As Variant
+
+    If chunkCodes.Count > 1 Then
+        Dim singleChunk As Collection
+        For Each fbCode In chunkCodes
+            Set singleChunk = New Collection
+            singleChunk.Add fbCode
+            SendBatchRequest apiKey, singleChunk, yr, reprtCode, cacheDict, activeComps
+        Next fbCode
+    Else
+        ' Only the failed company/period is treated as blank.
+        On Error Resume Next
+        For Each fbCode In chunkCodes
+            MarkFetched cacheDict, CStr(fbCode), "CFS", yr, reprtCode
+            MarkFetched cacheDict, CStr(fbCode), "OFS", yr, reprtCode
+        Next fbCode
+        On Error GoTo 0
+    End If
 End Sub
 
 ' Sends the actual HTTP request and caches the results (For All Detailed Accounts)
-Private Sub SendSingleRequest(ByVal apiKey As String, ByVal corpCode As String, ByVal fsDiv As String, ByVal yr As Integer, ByVal reprtCode As String, ByRef cacheDict As Object, ByRef activeComps As Object)
+Private Function SendSingleRequest(ByVal apiKey As String, ByVal corpCode As String, ByVal fsDiv As String, ByVal yr As Integer, ByVal reprtCode As String, ByRef cacheDict As Object, ByRef activeComps As Object) As String
     Dim url As String
     url = BASE_API_URL & "fnlttSinglAcntAll.xml?crtfc_key=" & apiKey & "&corp_code=" & corpCode & "&bsns_year=" & yr & "&reprt_code=" & reprtCode & "&fs_div=" & fsDiv
-    
+
     LogMsg "SendSingleRequest: Fetching URL: " & url
     Dim status As String
     Dim xmlDoc As Object
@@ -888,49 +955,48 @@ Private Sub SendSingleRequest(ByVal apiKey As String, ByVal corpCode As String, 
     Set xmlDoc = FetchDartXml(url, status)
     On Error GoTo 0
     LogMsg "SendSingleRequest: Fetch status = " & status
-    
+
     If status = "000" Then
         Dim listNodes As Object
         Set listNodes = xmlDoc.SelectNodes("/result/list")
-        
+
         Dim node As Object
         Dim xmlCorpCode As String, xmlFsDiv As String, sjDiv As String, accName As String
         Dim thAmt As String, frAmt As String, bfeAmt As String
-        
+
         For Each node In listNodes
             xmlCorpCode = Trim$(GetNodeTextSafe(node, "corp_code"))
             xmlFsDiv = Trim$(GetNodeTextSafe(node, "fs_div"))
             If Len(xmlFsDiv) = 0 Then xmlFsDiv = fsDiv
-            sjDiv = Trim$(GetNodeTextSafe(node, "sj_div"))
+            sjDiv = NormalizeStatementDiv(GetNodeTextSafe(node, "sj_div"))
             accName = Trim$(GetNodeTextSafe(node, "account_nm"))
-            
+
             If Len(xmlCorpCode) > 0 And Len(sjDiv) > 0 And Len(accName) > 0 Then
-                ' Filter to keep BS, IS, CIS, CF. Skip SCE (Statement of Changes in Equity) to avoid cluttering unless needed
-                If sjDiv = "BS" Or sjDiv = "IS" Or sjDiv = "CIS" Or sjDiv = "CF" Then
+                ' Filter to keep BS, IS, CFS. Skip SCE (Statement of Changes in Equity) to avoid cluttering unless needed
+                If sjDiv = "BS" Or sjDiv = "IS" Or sjDiv = "CFS" Then
                     If reprtCode = "11011" Then ' Annual
                         thAmt = GetNodeTextSafe(node, "thstrm_amount")
                         frAmt = GetNodeTextSafe(node, "frmtrm_amount")
                         bfeAmt = GetNodeTextSafe(node, "bfefrmtrm_amount")
-                        
+
                         SaveCacheValue cacheDict, xmlCorpCode, xmlFsDiv, sjDiv, accName, yr, "11011", thAmt
                         SaveCacheValue cacheDict, xmlCorpCode, xmlFsDiv, sjDiv, accName, yr - 1, "11011", frAmt
                         SaveCacheValue cacheDict, xmlCorpCode, xmlFsDiv, sjDiv, accName, yr - 2, "11011", bfeAmt
                     Else ' Quarter
                         thAmt = GetNodeTextSafe(node, "thstrm_amount")
-                        frAmt = GetNodeTextSafe(node, "frmtrm_amount")
-                        
+
                         SaveCacheValue cacheDict, xmlCorpCode, xmlFsDiv, sjDiv, accName, yr, reprtCode, thAmt
-                        SaveCacheValue cacheDict, xmlCorpCode, xmlFsDiv, sjDiv, accName, yr - 1, reprtCode, frAmt
                     End If
                 End If
             End If
         Next node
-        
+
         ' Mark as successfully fetched
         MarkFetched cacheDict, corpCode, fsDiv, yr, reprtCode
-        
-    ElseIf status = "010" Or status = "011" Or status = "013" Then
-        ' Daily limit or authentication error: Do not cache status, throw error
+        SendSingleRequest = status
+
+    ElseIf status = "010" Or status = "011" Then
+        ' Authentication error: Do not cache status, throw error
         Dim singleCompName As String, singleStockCode As String
         singleCompName = "Unknown"
         singleStockCode = "Unknown"
@@ -940,28 +1006,68 @@ Private Sub SendSingleRequest(ByVal apiKey As String, ByVal corpCode As String, 
                 singleCompName = activeComps(corpCode)(1)
             End If
         End If
-        
+
         Dim singleStatusDesc As String
         Select Case status
-            Case "010": singleStatusDesc = "πÃµÓ∑œ ¿Œ¡ı≈∞"
-            Case "011": singleStatusDesc = "ªÁøÎ«“ ºˆ æ¯¥¬ ¿Œ¡ı≈∞"
-            Case "013": singleStatusDesc = "ø‰√ª ¡¶«— √ ∞˙"
-            Case Else: singleStatusDesc = "±‚≈∏ ø°∑Ø"
+            Case "010": singleStatusDesc = "ÎØ∏Îì±Î°ù Ïù∏Ï¶ùÌÇ§"
+            Case "011": singleStatusDesc = "ÏÇ¨Ïö©Ìï† Ïàò ÏóÜÎäî Ïù∏Ï¶ùÌÇ§"
+            Case Else: singleStatusDesc = "Í∏∞ÌÉÄ ÏóêÎü¨"
         End Select
-        
+
         Err.Raise vbObjectError + 3010, , "DART Key Error: " & status & " (" & singleStatusDesc & ")" & vbCrLf & _
-                                         "¥ÎªÛ ±‚æ˜: " & singleCompName & "(" & singleStockCode & ")" 
+                                         "ÎåÄÏÉÅ Í∏∞ÏóÖ: " & singleCompName & "(" & singleStockCode & ")"
     Else
-        ' "020" No Data or other status codes: Cache as fetched so we do not query again
+        ' "013"/"020" No Data or other status codes: Cache as fetched so we do not query again
         MarkFetched cacheDict, corpCode, fsDiv, yr, reprtCode
+        SendSingleRequest = status
     End If
-    
-    Exit Sub
-    
+
+    Exit Function
+
 FetchError:
     LogMsg "SendSingleRequest FetchError: corp " & corpCode & " / " & yr & " / " & reprtCode & " Error: " & Err.Description
-End Sub
+    ' Fallback: mark company as fetched (empty) on error
+    On Error Resume Next
+    MarkFetched cacheDict, corpCode, fsDiv, yr, reprtCode
+    On Error GoTo 0
+    SendSingleRequest = "ERROR"
+End Function
 
+' Normalizes DART statement division codes for display and cache keys
+Private Function NormalizeStatementDiv(ByVal sjDiv As String) As String
+    sjDiv = UCase$(Trim$(sjDiv))
+    Select Case sjDiv
+        Case "CIS"
+            NormalizeStatementDiv = "IS"
+        Case "CF"
+            NormalizeStatementDiv = "CFS"
+        Case Else
+            NormalizeStatementDiv = sjDiv
+    End Select
+End Function
+
+' Returns the desired output statement order: BS, IS, CFS
+Private Function StatementDivByOrder(ByVal orderIdx As Integer) As String
+    Select Case orderIdx
+        Case 1
+            StatementDivByOrder = "BS"
+        Case 2
+            StatementDivByOrder = "IS"
+        Case 3
+            StatementDivByOrder = "CFS"
+        Case Else
+            StatementDivByOrder = ""
+    End Select
+End Function
+
+' AUTO mode accepts whichever statement type was successfully fetched.
+Private Function FsDivMatches(ByVal cachedFsDiv As String, ByVal requestedFsDiv As String) As Boolean
+    If requestedFsDiv = "AUTO" Then
+        FsDivMatches = (cachedFsDiv = "CFS" Or cachedFsDiv = "OFS")
+    Else
+        FsDivMatches = (cachedFsDiv = requestedFsDiv)
+    End If
+End Function
 ' Helper to write a value into cache dictionaries
 Private Sub SaveCacheValue(ByRef cacheDict As Object, ByVal corpCode As String, ByVal fsDiv As String, ByVal sjDiv As String, ByVal accName As String, ByVal yr As Integer, ByVal repCode As String, ByVal amt As String)
     Dim key As String
@@ -984,15 +1090,15 @@ Private Function FetchDartXml(ByVal url As String, ByRef outStatus As String) As
     Set http = CreateObject("MSXML2.ServerXMLHTTP.6.0")
     http.Open "GET", url, False
     http.Send
-    
+
     If http.Status <> 200 Then
         Err.Raise vbObjectError + 3001, , "HTTP Error " & http.Status & " fetching OpenDART."
     End If
-    
+
     ' Decode responseBody using UTF-8 to prevent Korean character corruption
     Dim responseText As String
     responseText = BytesToUTF8String(http.ResponseBody)
-    
+
     ' Strip XML declaration to prevent MSXML loadXML UTF-8 encoding mismatch error
     If InStr(1, responseText, "<?xml", vbTextCompare) > 0 Then
         Dim pDeclarationEnd As Long
@@ -1001,18 +1107,18 @@ Private Function FetchDartXml(ByVal url As String, ByRef outStatus As String) As
             responseText = Mid$(responseText, pDeclarationEnd + 2)
         End If
     End If
-    
+
     Dim xmlDoc As Object
     Set xmlDoc = CreateObject("MSXML2.DOMDocument.6.0")
     xmlDoc.Async = False
     xmlDoc.validateOnParse = False
     xmlDoc.resolveExternals = False
-    
+
     ' Load the UTF-8 text into the XML document
     If Not xmlDoc.LoadXML(responseText) Then
         Err.Raise vbObjectError + 3002, , "Failed to load XML content: " & xmlDoc.parseError.reason
     End If
-    
+
     Dim statusNode As Object
     Set statusNode = xmlDoc.SelectSingleNode("/result/status")
     If Not statusNode Is Nothing Then
@@ -1020,7 +1126,7 @@ Private Function FetchDartXml(ByVal url As String, ByRef outStatus As String) As
     Else
         outStatus = "UNKNOWN"
     End If
-    
+
     Set FetchDartXml = xmlDoc
 End Function
 
@@ -1051,7 +1157,7 @@ End Function
 Private Function CleanAmount(ByVal amtStr As String) As Variant
     amtStr = Replace(amtStr, ",", "")
     amtStr = Trim$(amtStr)
-    
+
     If Len(amtStr) = 0 Or amtStr = "-" Then
         CleanAmount = ""
     Else
@@ -1075,18 +1181,18 @@ Private Sub FormatCompanyBlock(ByVal ws As Worksheet, ByVal startCol As Long, By
     Dim cellRange As Range
     Dim lastCol As Long
     lastCol = startCol + 1 + numP
-    
+
     ' Title headers
     ws.Range(ws.Cells(1, startCol), ws.Cells(3, lastCol)).Font.Name = "Malgun Gothic"
     ws.Range(ws.Cells(1, startCol), ws.Cells(3, startCol)).Font.Bold = True
     ws.Range(ws.Cells(1, startCol), ws.Cells(3, startCol)).HorizontalAlignment = xlCenter
     ws.Range(ws.Cells(1, startCol), ws.Cells(3, startCol)).Interior.Color = RGB(242, 244, 247)
-    
+
     ' Border for meta info block
     Set cellRange = ws.Range(ws.Cells(1, startCol), ws.Cells(3, lastCol))
     cellRange.Borders.LineStyle = xlContinuous
     cellRange.Borders.Color = RGB(218, 222, 229)
-    
+
     ' Table Headers formatting
     Set cellRange = ws.Range(ws.Cells(5, startCol), ws.Cells(5, lastCol))
     cellRange.Font.Name = "Malgun Gothic"
@@ -1094,16 +1200,16 @@ Private Sub FormatCompanyBlock(ByVal ws As Worksheet, ByVal startCol As Long, By
     cellRange.HorizontalAlignment = xlCenter
     cellRange.Interior.Color = RGB(74, 119, 202) ' Professional blue
     cellRange.Font.Color = RGB(255, 255, 255)
-    
+
     ' Table Data cells formatting
     Set cellRange = ws.Range(ws.Cells(6, startCol), ws.Cells(endRow, lastCol))
     cellRange.Font.Name = "Malgun Gothic"
     cellRange.Font.Size = 10
-    
+
     ' Align accounts and classification
     ws.Range(ws.Cells(6, startCol), ws.Cells(endRow, startCol)).HorizontalAlignment = xlCenter
     ws.Range(ws.Cells(6, startCol + 1), ws.Cells(endRow, startCol + 1)).HorizontalAlignment = xlLeft
-    
+
     Dim c As Long
     For c = startCol + 2 To lastCol
         Dim dataRange As Range
@@ -1111,7 +1217,7 @@ Private Sub FormatCompanyBlock(ByVal ws As Worksheet, ByVal startCol As Long, By
         dataRange.HorizontalAlignment = xlRight
         dataRange.NumberFormat = "#,##0;(#,##0);""-"""
     Next c
-    
+
     ' Grid borders
     Set cellRange = ws.Range(ws.Cells(5, startCol), ws.Cells(endRow, lastCol))
     cellRange.Borders.LineStyle = xlContinuous
@@ -1151,7 +1257,7 @@ Private Function ReadUTF8File(ByVal filePath As String) As String
     stream.Open
     stream.LoadFromFile filePath
     ReadUTF8File = stream.ReadText(-1) ' adReadAll
-    
+
 CleanUp:
     If Not stream Is Nothing Then
         stream.Close
