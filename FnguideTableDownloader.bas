@@ -16,6 +16,7 @@ Private Const REQUEST_RETRY_DELAY_MILLISECONDS As Long = 1000
 
 Private gStep As String
 Private gHasRequested As Boolean
+Private gCompanyName As String
 
 Private gRegExpDefault As Object
 Private gRegExpRow As Object
@@ -23,16 +24,35 @@ Private gRegExpCell As Object
 Private gRegExpSpan As Object
 
 Public Sub DownloadFnguideTables()
+    Dim wsMain As Worksheet
+    Dim wsFnGuide As Worksheet
     Dim code As String
+    Dim reportGbVal As String
     Dim reportGb As String
     Dim reportName As String
     Dim originalCalculation As Long
+    Dim lastRow As Long
+    Dim r As Long
+    Dim startCol As Long
+    Dim totalCols As Long
+    Dim companyCount As Long
 
-    code = NormalizeStockCode(GetMainValue("C2"))
-    reportGb = ResolveReportGb(GetMainValue("C3"), reportName)
+    ' 1. Check/get MAIN sheet
+    Dim wb As Workbook
+    Set wb = ActiveWorkbook
+    If wb Is Nothing Then Set wb = ThisWorkbook
 
-    If Len(code) <> 6 Then
-        MsgBox "Enter a 6-digit stock code in MAIN!C2.", vbExclamation
+    On Error Resume Next
+    Set wsMain = wb.Worksheets("MAIN")
+    On Error GoTo 0
+    If wsMain Is Nothing Then
+        ShowMsgBox "MAIN sheet was not found. Create MAIN sheet and enter stock codes starting at B3.", vbCritical
+        Exit Sub
+    End If
+
+    lastRow = wsMain.Cells(wsMain.Rows.Count, 2).End(xlUp).Row
+    If lastRow < 3 Then
+        ShowMsgBox "No stock codes found in column B of MAIN starting at row 3.", vbExclamation
         Exit Sub
     End If
 
@@ -44,32 +64,88 @@ Public Sub DownloadFnguideTables()
     On Error GoTo CleanFail
     gHasRequested = False
 
-    DownloadFinanceCombined code, reportGb
+    ' 2. Clear or create FnGuide sheet
+    Set wsFnGuide = GetOrCreateSheet("FnGuide")
+    EnsureSheetWritable wsFnGuide
+    ClearOutputSheet wsFnGuide
 
-    DownloadRatioStacked code, reportGb
+    startCol = 1
+    companyCount = 0
+
+    ' 3. Loop over companies
+    For r = 3 To lastRow
+        code = Trim$(CStr(wsMain.Cells(r, 2).Value))
+        If Len(code) > 0 Then
+            code = NormalizeStockCode(code)
+            If Len(code) = 6 Then
+                reportGbVal = Trim$(CStr(wsMain.Cells(r, 3).Value))
+                reportGb = ResolveReportGb(reportGbVal, reportName)
+                
+                ' Add a 0.3s delay between companies
+                If companyCount > 0 Then
+                    Sleep 300
+                End If
+                
+                companyCount = companyCount + 1
+                gCompanyName = "" ' Clear before fetch
+                
+                ' Download and write side-by-side
+                totalCols = DownloadFinanceCombinedForCol(wsFnGuide, code, reportGb, startCol)
+                
+                ' Move startCol to the right (leaving 1 blank column)
+                startCol = startCol + totalCols + 1
+            End If
+        End If
+    Next r
+
+    ' 4. Final Formatting
+    If companyCount > 0 Then
+        wsFnGuide.Columns.AutoFit
+    End If
 
     Application.Calculation = originalCalculation
     Application.DisplayAlerts = True
     Application.ScreenUpdating = True
 
-    MsgBox "FnGuide table download complete: " & code & " / " & reportName, vbInformation
+    ShowMsgBox "FnGuide table download complete. Processed " & companyCount & " companies.", vbInformation
     Exit Sub
 
 CleanFail:
     Application.Calculation = originalCalculation
     Application.DisplayAlerts = True
     Application.ScreenUpdating = True
-    MsgBox "Download failed: " & Err.Description & vbCrLf & "Step: " & gStep, vbCritical
+    ShowMsgBox "Download failed: " & Err.Description & vbCrLf & "Step: " & gStep, vbCritical
 End Sub
 
+Private Function DownloadFinanceCombinedForCol(ByVal ws As Worksheet, ByVal code As String, ByVal reportGb As String, ByVal startCol As Long) As Long
+    Dim fsTables As Collection
+    Dim ratioTables As Collection
+
+    gStep = "Load financial statements for A" & code
+    Set fsTables = FetchDataTables(BuildFinanceUrl(code, reportGb), 6, "financial statement tables")
+
+    gStep = "Load ratio tables for A" & code
+    Set ratioTables = FetchDataTables(BuildRatioUrl(code, reportGb), 2, "ratio tables")
+
+    ' If company name was not parsed or is empty, use a fallback
+    If Len(gCompanyName) = 0 Then gCompanyName = "Code " & code
+
+    gStep = "Write FnGuide for A" & code
+    DownloadFinanceCombinedForCol = WriteSingleFinanceSheet(ws, fsTables, ratioTables, startCol, gCompanyName, "A" & code)
+End Function
+
 Private Sub DownloadFinanceCombined(ByVal code As String, ByVal reportGb As String)
-    Dim tables As Collection
+    Dim fsTables As Collection
+    Dim ratioTables As Collection
 
     gStep = "Load financial statements"
-    Set tables = FetchDataTables(BuildFinanceUrl(code, reportGb), 6, "financial statement tables")
+    Set fsTables = FetchDataTables(BuildFinanceUrl(code, reportGb), 6, "financial statement tables")
+
+    gStep = "Load ratio tables"
+    Set ratioTables = FetchDataTables(BuildRatioUrl(code, reportGb), 2, "ratio tables")
 
     gStep = "Write FS_Combined"
-    WriteSingleFinanceSheet "FS_Combined", tables
+    WriteSingleFinanceSheet "FS_Combined", fsTables, ratioTables
 End Sub
 
 Private Sub DownloadRatioStacked(ByVal code As String, ByVal reportGb As String)
@@ -161,6 +237,10 @@ Private Function FetchUtf8(ByVal url As String) As String
     FetchUtf8 = stm.ReadText
     stm.Close
     gHasRequested = True
+
+    If InStr(1, url, "SVD_Finance.asp", vbTextCompare) > 0 Then
+        gCompanyName = ExtractCompanyName(FetchUtf8)
+    End If
 End Function
 
 Private Sub WaitBeforeRequest()
@@ -257,42 +337,68 @@ Private Sub WriteTableToSheet(ByVal tbl As String, ByVal sheetName As String)
     ws.Rows(1).Font.Bold = True
 End Sub
 
-Private Sub WriteSingleFinanceSheet(ByVal sheetName As String, ByVal tables As Collection)
-    Dim ws As Worksheet
+Private Function WriteSingleFinanceSheet( _
+    ByVal ws As Worksheet, _
+    ByVal fsTables As Collection, _
+    ByVal ratioTables As Collection, _
+    ByVal startCol As Long, _
+    ByVal companyName As String, _
+    ByVal stockCode As String) As Long
+
     Dim nextRow As Long
-    Dim maxAnnualCols As Long
-    Dim colCount As Long
+    Dim blockCols As Long
+    Dim maxCols As Long
 
-    gStep = "Get sheet " & sheetName
-    Set ws = GetOrCreateSheet(sheetName)
-    EnsureSheetWritable ws
-    ClearOutputSheet ws
+    maxCols = 0
 
-    maxAnnualCols = 0
+    ' 1. Gather baseline headers from IS block
+    Dim isAnnualData As Variant
+    Dim isQuarterData As Variant
+    isAnnualData = RemoveColumnsByHeader(TableToArray(fsTables(1)), Array(KoreanYoYPercentText()))
+    isAnnualData = ProcessAnnualData(isAnnualData)
     
-    colCount = GetFinanceTableColCount(tables(1))
-    If colCount > maxAnnualCols Then maxAnnualCols = colCount
+    isQuarterData = RemoveColumnsByHeader(TableToArray(fsTables(2)), Array(KoreanYoYPercentText()))
+    isQuarterData = RemoveFirstColumn(isQuarterData)
     
-    colCount = GetFinanceTableColCount(tables(3))
-    If colCount > maxAnnualCols Then maxAnnualCols = colCount
+    Dim annualHeaders As Variant
+    Dim quarterHeaders As Variant
+    Dim cols As Long, c As Long
     
-    colCount = GetFinanceTableColCount(tables(5))
-    If colCount > maxAnnualCols Then maxAnnualCols = colCount
+    cols = UBound(isAnnualData, 2)
+    ReDim annualHeaders(1 To cols - 1)
+    For c = 2 To cols
+        annualHeaders(c - 1) = isAnnualData(1, c)
+    Next c
+    
+    cols = UBound(isQuarterData, 2)
+    ReDim quarterHeaders(1 To cols)
+    For c = 1 To cols
+        quarterHeaders(c) = isQuarterData(1, c)
+    Next c
 
+    ' 2. Stack blocks consecutively
     nextRow = 1
-    gStep = "Write IS to " & sheetName
-    nextRow = WriteFinanceBlockStacked(ws, tables(1), tables(2), "IS", nextRow, maxAnnualCols) + 2
+    gStep = "Write IS to FnGuide"
+    nextRow = WriteFinanceBlockStacked(ws, fsTables(1), fsTables(2), "IS", nextRow, True, Empty, Empty, startCol, companyName, stockCode, blockCols)
+    If blockCols > maxCols Then maxCols = blockCols
 
-    gStep = "Write BS to " & sheetName
-    nextRow = WriteFinanceBlockStacked(ws, tables(3), tables(4), "BS", nextRow, maxAnnualCols) + 2
+    gStep = "Write BS to FnGuide"
+    nextRow = WriteFinanceBlockStacked(ws, fsTables(3), fsTables(4), "BS", nextRow, False, annualHeaders, quarterHeaders, startCol, companyName, stockCode, blockCols)
+    If blockCols > maxCols Then maxCols = blockCols
 
-    gStep = "Write CFS to " & sheetName
-    nextRow = WriteFinanceBlockStacked(ws, tables(5), tables(6), "CFS", nextRow, maxAnnualCols)
+    gStep = "Write CFS to FnGuide"
+    nextRow = WriteFinanceBlockStacked(ws, fsTables(5), fsTables(6), "CFS", nextRow, False, annualHeaders, quarterHeaders, startCol, companyName, stockCode, blockCols)
+    If blockCols > maxCols Then maxCols = blockCols
 
-    ws.Columns(1).HorizontalAlignment = xlCenter
-    ws.Columns(2 + maxAnnualCols + 2).HorizontalAlignment = xlCenter
-    ws.Columns.AutoFit
-End Sub
+    gStep = "Write Ratio to FnGuide"
+    nextRow = WriteFinanceBlockStacked(ws, ratioTables(1), ratioTables(2), "Ratio", nextRow, False, annualHeaders, quarterHeaders, startCol, companyName, stockCode, blockCols)
+    If blockCols > maxCols Then maxCols = blockCols
+
+    ws.Columns(startCol).HorizontalAlignment = xlCenter
+    
+    ' Return total columns occupied (including classification column)
+    WriteSingleFinanceSheet = maxCols + 1
+End Function
 
 Private Function GetFinanceTableColCount(ByVal tbl As String) As Long
     Dim data As Variant
@@ -320,7 +426,13 @@ Private Function WriteFinanceBlockStacked( _
     ByVal quarterTable As String, _
     ByVal classFlag As String, _
     ByVal startRow As Long, _
-    ByVal maxAnnualCols As Long) As Long
+    ByVal writeHeader As Boolean, _
+    ByVal keepAnnualHeaders As Variant, _
+    ByVal keepQuarterHeaders As Variant, _
+    ByVal startCol As Long, _
+    ByVal companyName As String, _
+    ByVal stockCode As String, _
+    ByRef outCols As Long) As Long
 
     Dim annualRows As Long
     Dim annualCols As Long
@@ -330,10 +442,10 @@ Private Function WriteFinanceBlockStacked( _
     Dim r As Long
     Dim quarterStartCol As Long
 
-    annualRows = WriteFinanceBlockAt(ws, annualTable, 2, startRow, KoreanAnnualText(), annualCols)
+    annualRows = WriteFinanceBlockAt(ws, annualTable, startCol + 1, startRow, KoreanAnnualText(), writeHeader, keepAnnualHeaders, companyName, stockCode, annualCols)
     
-    quarterStartCol = 2 + maxAnnualCols + 3
-    quarterRows = WriteFinanceBlockAt(ws, quarterTable, quarterStartCol, startRow, KoreanQuarterText(), quarterCols)
+    quarterStartCol = startCol + 1 + annualCols
+    quarterRows = WriteFinanceBlockAt(ws, quarterTable, quarterStartCol, startRow, KoreanQuarterText(), writeHeader, keepQuarterHeaders, companyName, stockCode, quarterCols)
 
     If annualRows > quarterRows Then
         maxRows = annualRows
@@ -341,21 +453,23 @@ Private Function WriteFinanceBlockStacked( _
         maxRows = quarterRows
     End If
 
-    ' Annual classification (Column 1)
-    ws.Cells(startRow, 1).Value = KoreanClassificationText()
-    ws.Cells(startRow + 1, 1).Value = KoreanClassificationText()
-    For r = startRow + 2 To startRow + maxRows - 1
-        ws.Cells(r, 1).Value = classFlag
-    Next r
+    ' Annual classification (Column startCol)
+    If writeHeader Then
+        ws.Cells(startRow, startCol).Value = Empty
+        ws.Cells(startRow + 1, startCol).Value = Empty
+        ws.Cells(startRow + 2, startCol).Value = KoreanClassificationText()
+        For r = startRow + 3 To startRow + maxRows - 1
+            ws.Cells(r, startCol).Value = classFlag
+        Next r
+        
+        ws.Range(ws.Cells(startRow, startCol), ws.Cells(startRow + 2, startCol + 1 + annualCols + quarterCols - 1)).Font.Bold = True
+    Else
+        For r = startRow To startRow + maxRows - 1
+            ws.Cells(r, startCol).Value = classFlag
+        Next r
+    End If
 
-    ' Quarter classification (Column quarterStartCol - 1)
-    ws.Cells(startRow, quarterStartCol - 1).Value = KoreanClassificationText()
-    ws.Cells(startRow + 1, quarterStartCol - 1).Value = KoreanClassificationText()
-    For r = startRow + 2 To startRow + maxRows - 1
-        ws.Cells(r, quarterStartCol - 1).Value = classFlag
-    Next r
-
-    ws.Rows(startRow & ":" & (startRow + 1)).Font.Bold = True
+    outCols = annualCols + quarterCols
 
     WriteFinanceBlockStacked = startRow + maxRows
 End Function
@@ -366,6 +480,10 @@ Private Function WriteFinanceBlockAt( _
     ByVal startCol As Long, _
     ByVal startRow As Long, _
     ByVal periodFlag As String, _
+    ByVal writeHeader As Boolean, _
+    ByVal keepHeaders As Variant, _
+    ByVal companyName As String, _
+    ByVal stockCode As String, _
     ByRef outColsN As Long) As Long
 
     Dim data As Variant
@@ -377,21 +495,69 @@ Private Function WriteFinanceBlockAt( _
     blockName = periodFlag
 
     gStep = "Parse block " & ws.Name & " / " & blockName
-    data = RemoveColumnsByHeader(TableToArray(tbl), Array(KoreanYoYPercentText()))
+    data = GetProcessedData(tbl, periodFlag)
+    
+    If Not IsEmpty(keepHeaders) Then
+        data = KeepOnlySpecificHeaders(data, keepHeaders)
+    End If
+    
     rowsN = UBound(data, 1)
     colsN = UBound(data, 2)
     outColsN = colsN
 
-    ReDim dataOut(1 To rowsN + 1, 1 To colsN)
-    FillFlagRow dataOut, 1, colsN, periodFlag
-    CopyArray data, dataOut, 2
+    If writeHeader Then
+        ' Excel Row 1: periodFlag
+        ' Excel Row 2: companyName or stockCode
+        ' Excel Row 3: headers
+        ' Excel Row 4+: data
+        ReDim dataOut(1 To rowsN + 2, 1 To colsN)
+        Dim r As Long, c As Long
+        For c = 1 To colsN
+            If periodFlag = KoreanAnnualText() And c = 1 Then
+                dataOut(1, c) = Empty
+                dataOut(2, c) = companyName
+            Else
+                dataOut(1, c) = periodFlag
+                dataOut(2, c) = stockCode
+            End If
+            
+            For r = 1 To rowsN
+                dataOut(r + 2, c) = data(r, c)
+            Next r
+        Next c
 
-    gStep = "Write block " & ws.Name & " / " & blockName
-    ws.Cells(startRow, startCol).Resize(rowsN + 1, colsN).Value = dataOut
-    gStep = "Format block " & ws.Name & " / " & blockName
-    ApplyTableFormattingAt ws, tbl, rowsN, startCol, startRow
+        gStep = "Write block " & ws.Name & " / " & blockName
+        ws.Cells(startRow, startCol).Resize(rowsN + 2, colsN).Value = dataOut
+        
+        If periodFlag = KoreanAnnualText() Then
+            gStep = "Format block " & ws.Name & " / " & blockName
+            ApplyTableFormattingAt ws, tbl, rowsN, startCol, startRow + 1, 0
+        End If
 
-    WriteFinanceBlockAt = rowsN + 1
+        WriteFinanceBlockAt = rowsN + 2
+    Else
+        If rowsN > 1 Then
+            ReDim dataOut(1 To rowsN - 1, 1 To colsN)
+            Dim r2 As Long, c2 As Long
+            For r2 = 2 To rowsN
+                For c2 = 1 To colsN
+                    dataOut(r2 - 1, c2) = data(r2, c2)
+                Next c2
+            Next r2
+
+            gStep = "Write block (no header) " & ws.Name & " / " & blockName
+            ws.Cells(startRow, startCol).Resize(rowsN - 1, colsN).Value = dataOut
+            
+            If periodFlag = KoreanAnnualText() Then
+                gStep = "Format block " & ws.Name & " / " & blockName
+                ApplyTableFormattingAt ws, tbl, rowsN - 1, startCol, startRow - 1, 1
+            End If
+
+            WriteFinanceBlockAt = rowsN - 1
+        Else
+            WriteFinanceBlockAt = 0
+        End If
+    End If
 End Function
 
 Private Sub FillFlagRow(ByRef data As Variant, ByVal rowIndex As Long, ByVal colCount As Long, ByVal value As String)
@@ -455,7 +621,7 @@ Private Function IsInArray(ByVal value As String, ByVal items As Variant) As Boo
 End Function
 
 Private Sub ApplyTableFormatting(ByVal ws As Worksheet, ByVal tbl As String, ByVal rowCount As Long)
-    ApplyTableFormattingAt ws, tbl, rowCount, 1, 0
+    ApplyTableFormattingAt ws, tbl, rowCount, 1, 0, 0
 End Sub
 
 Private Sub ApplyTableFormattingAt( _
@@ -463,7 +629,8 @@ Private Sub ApplyTableFormattingAt( _
     ByVal tbl As String, _
     ByVal rowCount As Long, _
     ByVal startCol As Long, _
-    ByVal rowOffset As Long)
+    ByVal rowOffset As Long, _
+    ByVal trOffset As Long)
 
     Dim r As Long
     Dim targetRow As Long
@@ -479,7 +646,12 @@ Private Sub ApplyTableFormattingAt( _
     If matches Is Nothing Then Exit Sub
 
     r = 0
+    Dim matchIdx As Long
+    matchIdx = 0
     For Each m In matches
+        matchIdx = matchIdx + 1
+        If matchIdx <= trOffset Then GoTo NextMatch
+
         r = r + 1
         If r > rowCount Then Exit For
 
@@ -494,6 +666,7 @@ Private Sub ApplyTableFormattingAt( _
                 ws.Cells(targetRow, startCol).IndentLevel = 1
             End If
         End If
+NextMatch:
     Next m
 End Sub
 
@@ -786,3 +959,260 @@ End Function
 Private Function KoreanClassificationText() As String
     KoreanClassificationText = ChrW(&HAD6C) & ChrW(&HBD84)
 End Function
+
+Private Function KoreanYoYText() As String
+    KoreanYoYText = ChrW(&HC804) & ChrW(&HB144) & ChrW(&HB3D9) & ChrW(&HAE30)
+End Function
+
+Private Function ProcessAnnualData(ByVal data As Variant) As Variant
+    Dim c As Long, r As Long
+    Dim colsN As Long, rowsN As Long
+    colsN = UBound(data, 2)
+    rowsN = UBound(data, 1)
+
+    ' 1. Collect columns with YYYY/MM pattern
+    Dim ymCols() As Long
+    Dim ymMonths() As String
+    Dim ymCount As Long
+    ymCount = 0
+
+    Dim re As Object
+    Set re = CreateObject("VBScript.RegExp")
+    re.Pattern = "\b\d{4}/(\d{2})\b"
+    re.Global = False
+    re.IgnoreCase = True
+
+    For c = 2 To colsN
+        Dim header As String
+        header = CStr(data(1, c))
+        If re.Test(header) Then
+            Dim matches As Object
+            Set matches = re.Execute(header)
+            ymCount = ymCount + 1
+            ReDim Preserve ymCols(1 To ymCount)
+            ReDim Preserve ymMonths(1 To ymCount)
+            ymCols(ymCount) = c
+            ymMonths(ymCount) = matches(0).SubMatches(0) ' Extract MM
+        End If
+    Next c
+
+    ' 2. Check condition: if the rightmost YYYY/MM month is unique
+    Dim shouldRemove As Boolean
+    shouldRemove = False
+    If ymCount >= 2 Then
+        Dim lastMonth As String
+        Dim firstMonth As String
+        lastMonth = ymMonths(ymCount)
+        firstMonth = ymMonths(1)
+        
+        Dim allPrevSame As Boolean
+        allPrevSame = True
+        Dim i As Long
+        For i = 1 To ymCount - 1
+            If ymMonths(i) <> firstMonth Then
+                allPrevSame = False
+                Exit For
+            End If
+        Next i
+        
+        If allPrevSame And lastMonth <> firstMonth Then
+            shouldRemove = True
+        End If
+    End If
+
+    ' 3. Process removal
+    If shouldRemove Then
+        Dim removeColLastYM As Long
+        removeColLastYM = ymCols(ymCount)
+        
+        Dim removeColYoY As Long
+        removeColYoY = 0
+        Dim yoyText As String
+        yoyText = KoreanYoYText()
+        
+        For c = 2 To colsN
+            If CStr(data(1, c)) = yoyText Then
+                removeColYoY = c
+                Exit For
+            End If
+        Next c
+        
+        Dim keepCount As Long
+        keepCount = 0
+        Dim keepCols() As Long
+        For c = 1 To colsN
+            If c <> removeColLastYM And c <> removeColYoY Then
+                keepCount = keepCount + 1
+                ReDim Preserve keepCols(1 To keepCount)
+                keepCols(keepCount) = c
+            End If
+        Next c
+        
+        Dim result() As Variant
+        ReDim result(1 To rowsN, 1 To keepCount)
+        For r = 1 To rowsN
+            For c = 1 To keepCount
+                result(r, c) = data(r, keepCols(c))
+            Next c
+        Next r
+        ProcessAnnualData = result
+    Else
+        ProcessAnnualData = data
+    End If
+End Function
+
+Private Function RemoveFirstColumn(ByVal data As Variant) As Variant
+    Dim r As Long, c As Long
+    Dim rowsN As Long, colsN As Long
+    rowsN = UBound(data, 1)
+    colsN = UBound(data, 2)
+    
+    If colsN <= 1 Then
+        RemoveFirstColumn = data
+        Exit Function
+    End If
+    
+    Dim result() As Variant
+    ReDim result(1 To rowsN, 1 To colsN - 1)
+    
+    For r = 1 To rowsN
+        For c = 2 To colsN
+            result(r, c - 1) = data(r, c)
+        Next c
+    Next r
+    
+    RemoveFirstColumn = result
+End Function
+
+Private Function GetCleanHeaderKey(ByVal header As String) As String
+    Dim re As Object
+    Set re = CreateObject("VBScript.RegExp")
+    re.Pattern = "\b\d{4}/\d{2}\b"
+    re.Global = False
+    re.IgnoreCase = True
+    If re.Test(header) Then
+        GetCleanHeaderKey = re.Execute(header)(0).Value
+    Else
+        GetCleanHeaderKey = Trim$(header)
+    End If
+End Function
+
+Private Function KeepOnlySpecificHeaders(ByVal data As Variant, ByVal keepHeaders As Variant) As Variant
+    Dim keep() As Boolean
+    Dim c As Long, r As Long
+    Dim outCol As Long
+    Dim keepCount As Long
+    Dim result() As Variant
+    Dim colsN As Long
+    
+    colsN = UBound(data, 2)
+    ReDim keep(1 To colsN)
+    
+    Dim isFirstColAccountName As Boolean
+    isFirstColAccountName = True
+    Dim re As Object
+    Set re = CreateObject("VBScript.RegExp")
+    re.Pattern = "\b\d{4}/\d{2}\b"
+    If re.Test(CStr(data(1, 1))) Then
+        isFirstColAccountName = False
+    End If
+
+    If isFirstColAccountName Then
+        keep(1) = True
+        keepCount = 1
+    End If
+    
+    Dim startIdx As Long
+    If isFirstColAccountName Then startIdx = 2 Else startIdx = 1
+    
+    For c = startIdx To colsN
+        Dim headerVal As String
+        headerVal = CStr(data(1, c))
+        Dim cleanHeader As String
+        cleanHeader = GetCleanHeaderKey(headerVal)
+        
+        Dim isFound As Boolean
+        isFound = False
+        Dim i As Long
+        For i = LBound(keepHeaders) To UBound(keepHeaders)
+            If GetCleanHeaderKey(CStr(keepHeaders(i))) = cleanHeader Then
+                isFound = True
+                Exit For
+            End If
+        Next i
+        
+        keep(c) = isFound
+        If keep(c) Then keepCount = keepCount + 1
+    Next c
+    
+    If keepCount = 0 Then
+        ReDim result(1 To UBound(data, 1), 1 To 1)
+        KeepOnlySpecificHeaders = result
+        Exit Function
+    End If
+    
+    ReDim result(1 To UBound(data, 1), 1 To keepCount)
+    For r = 1 To UBound(data, 1)
+        outCol = 0
+        For c = 1 To colsN
+            If keep(c) Then
+                outCol = outCol + 1
+                result(r, outCol) = data(r, c)
+            End If
+        Next c
+    Next r
+    
+    KeepOnlySpecificHeaders = result
+End Function
+
+Private Function GetProcessedData(ByVal tbl As String, ByVal periodFlag As String) As Variant
+    Dim data As Variant
+    data = RemoveColumnsByHeader(TableToArray(tbl), Array(KoreanYoYPercentText()))
+    
+    If periodFlag = KoreanAnnualText() Then
+        data = ProcessAnnualData(data)
+    ElseIf periodFlag = KoreanQuarterText() Then
+        data = RemoveFirstColumn(data)
+    End If
+    
+    GetProcessedData = data
+End Function
+
+Private Function ExtractCompanyName(ByVal htmlText As String) As String
+    Dim re As Object
+    Dim matches As Object
+    Set re = CreateObject("VBScript.RegExp")
+    re.IgnoreCase = True
+    re.Global = False
+    
+    re.Pattern = "<h1 id=""giName"">([^<]+)</h1>"
+    If re.Test(htmlText) Then
+        Set matches = re.Execute(htmlText)
+        ExtractCompanyName = Trim(matches(0).SubMatches(0))
+        Exit Function
+    End If
+    
+    re.Pattern = "id=""giname"" value=""([^""]+)"""
+    If re.Test(htmlText) Then
+        Set matches = re.Execute(htmlText)
+        ExtractCompanyName = Trim(matches(0).SubMatches(0))
+        Exit Function
+    End If
+    
+    re.Pattern = "<title>([^(|]+)\("
+    If re.Test(htmlText) Then
+        Set matches = re.Execute(htmlText)
+        ExtractCompanyName = Trim(matches(0).SubMatches(0))
+        Exit Function
+    End If
+    
+    ExtractCompanyName = "Unknown"
+End Function
+
+Private Sub ShowMsgBox(ByVal prompt As String, Optional ByVal buttons As VbMsgBoxStyle = vbOKOnly, Optional ByVal title As String = "")
+    If Application.UserControl Then
+        MsgBox prompt, buttons, title
+    Else
+        Debug.Print prompt
+    End If
+End Sub
