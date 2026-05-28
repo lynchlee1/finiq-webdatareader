@@ -1,6 +1,7 @@
 import win32com.client
 import os
 import subprocess
+import tempfile
 
 def kill_excel():
     print("Terminating Excel processes to release file locks...")
@@ -56,9 +57,30 @@ def import_bas():
                 wb.VBProject.VBComponents.Remove(comp)
                 break
                 
-        # Import .bas file
-        print(f"Importing VBA module from: {bas_path}")
-        wb.VBProject.VBComponents.Import(bas_path)
+        # Excel's VBA importer reads .bas text through the local ANSI code page.
+        # Keep the repository source as UTF-8, but import a CP949 temp copy so
+        # Korean VBA string literals are preserved in Excel.
+        print(f"Preparing CP949 VBA import copy from UTF-8 source: {bas_path}")
+        with open(bas_path, "r", encoding="utf-8-sig", newline=None) as bas_file:
+            module_code = bas_file.read()
+
+        temp_bas_path = None
+        try:
+            with tempfile.NamedTemporaryFile(
+                "w",
+                suffix=".bas",
+                delete=False,
+                encoding="cp949",
+                newline="\r\n",
+            ) as temp_bas:
+                temp_bas.write(module_code)
+                temp_bas_path = temp_bas.name
+
+            print(f"Importing VBA module from CP949 temp file: {temp_bas_path}")
+            wb.VBProject.VBComponents.Import(temp_bas_path)
+        finally:
+            if temp_bas_path and os.path.exists(temp_bas_path):
+                os.remove(temp_bas_path)
         
         # Save and close
         print("Saving workbook...")

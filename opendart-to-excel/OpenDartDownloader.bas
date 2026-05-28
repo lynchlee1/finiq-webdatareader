@@ -4,7 +4,7 @@ Option Explicit
 ' OpenDART Financial Statement Downloader (Optimized Version)
 ' Downloads financial statements from OpenDART in batches to maximize performance.
 ' Reads and writes worksheets using 2D Variant Arrays to avoid COM overhead.
-' Caches company mappings in "DART 내부코드" sheet to run instantly after first load.
+' Caches company mappings in the DART corp-code sheet to run instantly after first load.
 ' Caches fetched financial statement records in-memory during execution.
 
 #If VBA7 Then
@@ -14,6 +14,144 @@ Option Explicit
 #End If
 
 Private Const BASE_API_URL As String = "https://opendart.fss.or.kr/api/"
+
+Private Function WText(ParamArray codePoints() As Variant) As String
+    Dim i As Long
+    Dim s As String
+    For i = LBound(codePoints) To UBound(codePoints)
+        s = s & ChrW$(CLng(codePoints(i)))
+    Next i
+    WText = s
+End Function
+
+Private Function DartCorpCodeSheetName() As String
+    DartCorpCodeSheetName = "DART " & WText(&HB0B4, &HBD80, &HCF54, &HB4DC)
+End Function
+
+Private Function DartCorpCodeInitLabel() As String
+    DartCorpCodeInitLabel = DartCorpCodeSheetName() & WText(&H0020, &HCD08, &HAE30, &HD654)
+End Function
+
+Private Function DartCorpCodeInitDoneMessage(ByVal matchCount As Long) As String
+    DartCorpCodeInitDoneMessage = DartCorpCodeInitLabel() & _
+        WText(&H0020, &HC644, &HB8CC, &H002E, &H0020, &HCD1D, &H0020) & _
+        matchCount & _
+        WText(&HAC1C, &HC758, &H0020, &HD68C, &HC0AC, &H0020, &HC815, &HBCF4, &HAC00, &H0020, &HC0DD, &HC131, &HB418, &HC5C8, &HC2B5, &HB2C8, &HB2E4, &H002E)
+End Function
+
+Private Function DartCorpCodeMissingMessage() As String
+    DartCorpCodeMissingMessage = DartCorpCodeSheetName() & _
+        WText(&H0020, &HC2DC, &HD2B8, &HAC00, &H0020, &HC874, &HC7AC, &HD558, &HC9C0, &H0020, &HC54A, &HC2B5, &HB2C8, &HB2E4, &H002E, &H0020, &HBA3C, &HC800, &H0020, &H0027) & _
+        DartCorpCodeInitLabel() & _
+        WText(&H0027, &H0020, &HB9E4, &HD06C, &HB85C, &HB97C, &H0020, &HC2E4, &HD589, &HD574, &H0020, &HC8FC, &HC138, &HC694, &H002E)
+End Function
+
+Private Function DartCorpCodeEmptyMessage() As String
+    DartCorpCodeEmptyMessage = DartCorpCodeSheetName() & _
+        WText(&H0020, &HC2DC, &HD2B8, &HAC00, &H0020, &HBE44, &HC5B4, &H0020, &HC788, &HC2B5, &HB2C8, &HB2E4, &H002E, &H0020, &HBA3C, &HC800, &H0020, &H0027) & _
+        DartCorpCodeInitLabel() & _
+        WText(&H0027, &H0020, &HB9E4, &HD06C, &HB85C, &HB97C, &H0020, &HC2E4, &HD589, &HD574, &H0020, &HC8FC, &HC138, &HC694, &H002E)
+End Function
+
+Private Function DartCorpCodeMissingDescription() As String
+    DartCorpCodeMissingDescription = DartCorpCodeSheetName() & WText(&H0020, &HC2DC, &HD2B8, &H0020, &HC5C6, &HC74C)
+End Function
+
+Private Function DartCorpCodeEmptyDescription() As String
+    DartCorpCodeEmptyDescription = DartCorpCodeSheetName() & WText(&H0020, &HC2DC, &HD2B8, &H0020, &HBE44, &HC5B4, &HC788, &HC74C)
+End Function
+
+Private Function KoreanAll() As String
+    KoreanAll = WText(&HC804, &HCCB4)
+End Function
+
+Private Function KoreanMajor() As String
+    KoreanMajor = WText(&HC8FC, &HC694)
+End Function
+
+Private Function KoreanSummary() As String
+    KoreanSummary = WText(&HC694, &HC57D)
+End Function
+
+Private Function KoreanYear() As String
+    KoreanYear = WText(&HB144)
+End Function
+
+Private Function KoreanAnnual() As String
+    KoreanAnnual = WText(&HC5F0, &HAC04)
+End Function
+
+Private Function KoreanSeparate() As String
+    KoreanSeparate = WText(&HBCC4, &HB3C4)
+End Function
+
+Private Function KoreanConsolidated() As String
+    KoreanConsolidated = WText(&HC5F0, &HACB0)
+End Function
+
+Private Function KoreanCompanyName() As String
+    KoreanCompanyName = WText(&HAE30, &HC5C5, &HBA85)
+End Function
+
+Private Function KoreanStockCode() As String
+    KoreanStockCode = WText(&HC885, &HBAA9, &HCF54, &HB4DC)
+End Function
+
+Private Function KoreanCategory() As String
+    KoreanCategory = WText(&HAD6C, &HBD84)
+End Function
+
+Private Function KoreanCfsStatement() As String
+    KoreanCfsStatement = WText(&HC5F0, &HACB0, &HC7AC, &HBB34, &HC81C, &HD45C)
+End Function
+
+Private Function KoreanOfsStatement() As String
+    KoreanOfsStatement = WText(&HBCC4, &HB3C4, &HC7AC, &HBB34, &HC81C, &HD45C)
+End Function
+
+Private Function KoreanAccountName() As String
+    KoreanAccountName = WText(&HACC4, &HC815, &HACFC, &HBAA9)
+End Function
+
+Private Function KoreanQuarter1() As String
+    KoreanQuarter1 = WText(&H0031, &HBD84, &HAE30)
+End Function
+
+Private Function KoreanHalf() As String
+    KoreanHalf = WText(&HBC18, &HAE30)
+End Function
+
+Private Function KoreanQuarter2() As String
+    KoreanQuarter2 = WText(&H0032, &HBD84, &HAE30)
+End Function
+
+Private Function KoreanQuarter3() As String
+    KoreanQuarter3 = WText(&H0033, &HBD84, &HAE30)
+End Function
+
+Private Function KoreanQuarter4() As String
+    KoreanQuarter4 = WText(&H0034, &HBD84, &HAE30)
+End Function
+
+Private Function KoreanBusiness() As String
+    KoreanBusiness = WText(&HC0AC, &HC5C5)
+End Function
+
+Private Function KoreanUnregisteredKey() As String
+    KoreanUnregisteredKey = WText(&HBBF8, &HB4F1, &HB85D, &H0020, &HC778, &HC99D, &HD0A4)
+End Function
+
+Private Function KoreanInvalidKey() As String
+    KoreanInvalidKey = WText(&HC0AC, &HC6A9, &HD560, &H0020, &HC218, &H0020, &HC5C6, &HB294, &H0020, &HC778, &HC99D, &HD0A4)
+End Function
+
+Private Function KoreanOtherError() As String
+    KoreanOtherError = WText(&HAE30, &HD0C0, &H0020, &HC5D0, &HB7EC)
+End Function
+
+Private Function KoreanTargetCompany() As String
+    KoreanTargetCompany = WText(&HB300, &HC0C1, &H0020, &HAE30, &HC5C5, &H003A, &H0020)
+End Function
 
 Public Sub TestLogging()
     LogMsg "Test logging from VBA"
@@ -82,8 +220,8 @@ Public Sub DownloadDartData()
     targetDateStr = Trim$(CStr(wsMain.Range("C3").Value))
     accountType = Trim$(CStr(wsMain.Range("C4").Value))
 
-    If Len(accountType) = 0 Then accountType = "전체"
-    isMajor = (LCase$(accountType) = "주요" Or LCase$(accountType) = "요약" Or LCase$(accountType) = "major" Or LCase$(accountType) = "summary")
+    If Len(accountType) = 0 Then accountType = KoreanAll()
+    isMajor = (LCase$(accountType) = KoreanMajor() Or LCase$(accountType) = KoreanSummary() Or LCase$(accountType) = "major" Or LCase$(accountType) = "summary")
 
     If Len(apiKey) = 0 Then
         MsgBox "API Key in cell C2 of MAIN sheet is empty.", vbCritical
@@ -119,9 +257,9 @@ Public Sub DownloadDartData()
         ReDim periodYears(1 To 3)
         ReDim periodRepCodes(1 To 3)
 
-        periodLabels(1) = CStr(targetYear - 2) & "년 연간"
-        periodLabels(2) = CStr(targetYear - 1) & "년 연간"
-        periodLabels(3) = CStr(targetYear) & "년 연간"
+        periodLabels(1) = CStr(targetYear - 2) & KoreanYear() & " " & KoreanAnnual()
+        periodLabels(2) = CStr(targetYear - 1) & KoreanYear() & " " & KoreanAnnual()
+        periodLabels(3) = CStr(targetYear) & KoreanYear() & " " & KoreanAnnual()
 
         periodYears(1) = targetYear - 2
         periodYears(2) = targetYear - 1
@@ -136,11 +274,11 @@ Public Sub DownloadDartData()
         ReDim periodYears(1 To 5)
         ReDim periodRepCodes(1 To 5)
 
-        periodLabels(1) = CStr(targetYear - 3) & "년 연간"
-        periodLabels(2) = CStr(targetYear - 2) & "년 연간"
-        periodLabels(3) = CStr(targetYear - 1) & "년 연간"
-        periodLabels(4) = CStr(targetYear - 1) & "년 " & targetPeriodName
-        periodLabels(5) = CStr(targetYear) & "년 " & targetPeriodName
+        periodLabels(1) = CStr(targetYear - 3) & KoreanYear() & " " & KoreanAnnual()
+        periodLabels(2) = CStr(targetYear - 2) & KoreanYear() & " " & KoreanAnnual()
+        periodLabels(3) = CStr(targetYear - 1) & KoreanYear() & " " & KoreanAnnual()
+        periodLabels(4) = CStr(targetYear - 1) & KoreanYear() & " " & targetPeriodName
+        periodLabels(5) = CStr(targetYear) & KoreanYear() & " " & targetPeriodName
 
         periodYears(1) = targetYear - 3
         periodYears(2) = targetYear - 2
@@ -216,9 +354,9 @@ Public Sub DownloadDartData()
                 fsDivStr = Trim$(CStr(mainRangeData(idxRow, 2)))
 
                 ' Resolve consolidated vs separate. Blank means try consolidated first, then separate on 013.
-                If fsDivStr = "별도" Or UCase$(fsDivStr) = "OFS" Or UCase$(fsDivStr) = "SEP" Or UCase$(fsDivStr) = "SEPARATE" Then
+                If fsDivStr = KoreanSeparate() Or UCase$(fsDivStr) = "OFS" Or UCase$(fsDivStr) = "SEP" Or UCase$(fsDivStr) = "SEPARATE" Then
                     fsDiv = "OFS"
-                ElseIf fsDivStr = "연결" Or UCase$(fsDivStr) = "CFS" Or UCase$(fsDivStr) = "CONSOLIDATED" Then
+                ElseIf fsDivStr = KoreanConsolidated() Or UCase$(fsDivStr) = "CFS" Or UCase$(fsDivStr) = "CONSOLIDATED" Then
                     fsDiv = "CFS"
                 Else
                     fsDiv = "AUTO"
@@ -270,7 +408,15 @@ Public Sub DownloadDartData()
         End If
     Next p
 
-    ' 8. Populate unique account lists from cacheDict (Supports new and old format)
+    ' 8. Resolve AUTO companies to a single actual statement type before output.
+    For Each compKey In activeComps.Keys
+        compInfo = activeComps(compKey)
+        If compInfo(2) = "AUTO" Then
+            activeComps(compKey) = Array(compInfo(0), compInfo(1), ResolveAutoFsDiv(cacheDict, CStr(compKey)))
+        End If
+    Next compKey
+
+    ' 9. Populate unique account lists from cacheDict (Supports new and old format)
     ' Loop over periods in reverse (latest first) to get accounts in the order of the latest report!
     For Each compKey In activeComps.Keys
         compInfo = activeComps(compKey)
@@ -282,7 +428,7 @@ Public Sub DownloadDartData()
 
         Dim stmtIdx As Integer
         Dim targetSjDiv As String
-        For stmtIdx = 1 To 3
+        For stmtIdx = 1 To 5
             targetSjDiv = StatementDivByOrder(stmtIdx)
             For pRev = numPeriods To 1 Step -1
                 targetYr = periodYears(pRev)
@@ -306,9 +452,32 @@ Public Sub DownloadDartData()
                 Next cKey
             Next pRev
         Next stmtIdx
+
+        For pRev = numPeriods To 1 Step -1
+            targetYr = periodYears(pRev)
+            targetRepCode = periodRepCodes(pRev)
+
+            For Each cKey In cacheDict.Keys
+                parts = Split(cKey, "|")
+                If UBound(parts) = 5 Then
+                    If parts(0) = compKey And FsDivMatches(parts(1), fsDiv) Then
+                        If Not IsKnownStatementDiv(parts(2)) And CInt(parts(4)) = targetYr And parts(5) = targetRepCode Then
+                            AddUnique corpAccounts(compKey), parts(2) & " | " & parts(3)
+                        End If
+                    End If
+                ElseIf UBound(parts) = 4 Then
+                    If parts(0) = compKey Then
+                        If Not IsKnownStatementDiv(parts(1)) And CInt(parts(3)) = targetYr And parts(4) = targetRepCode Then
+                            AddUnique corpAccounts(compKey), parts(1) & " | " & parts(2)
+                        End If
+                    End If
+                End If
+            Next cKey
+        Next pRev
+
     Next compKey
 
-    ' 9. Write results to Excel using 2D Variant Arrays (Fast batch writing)
+    ' 10. Write results to Excel using 2D Variant Arrays (Fast batch writing)
     Dim startCol As Long
     startCol = 1
 
@@ -322,21 +491,17 @@ Public Sub DownloadDartData()
 
         ' Write Company Header Info in batch
         Dim metaArr(1 To 3, 1 To 2) As Variant
-        metaArr(1, 1) = "기업명": metaArr(1, 2) = cName
-        metaArr(2, 1) = "종목코드": metaArr(2, 2) = "A" & sCode
-        metaArr(3, 1) = "구분"
-        If fDiv = "AUTO" Then
-            metaArr(3, 2) = "연결 우선(별도 fallback)"
-        Else
-            metaArr(3, 2) = IIf(fDiv = "CFS", "연결재무제표", "별도재무제표")
-        End If
+        metaArr(1, 1) = KoreanCompanyName(): metaArr(1, 2) = cName
+        metaArr(2, 1) = KoreanStockCode(): metaArr(2, 2) = "A" & sCode
+        metaArr(3, 1) = KoreanCategory()
+        metaArr(3, 2) = IIf(fDiv = "CFS", KoreanCfsStatement(), KoreanOfsStatement())
         wsOut.Cells(1, startCol).Resize(3, 2).Value = metaArr
 
         ' Write Table Headers in batch
         Dim headerArr() As Variant
         ReDim headerArr(1 To 1, 1 To numPeriods + 2)
-        headerArr(1, 1) = "구분"
-        headerArr(1, 2) = "계정과목"
+        headerArr(1, 1) = KoreanCategory()
+        headerArr(1, 2) = KoreanAccountName()
         For p = 1 To numPeriods
             headerArr(1, p + 2) = periodLabels(p)
         Next p
@@ -371,34 +536,15 @@ Public Sub DownloadDartData()
                 ' Values from cache (Fallback to old format)
                 For p = 1 To numPeriods
                     Dim dataKeyNew As String, dataKeyOld As String
-                    If fDiv = "AUTO" Then
-                        dataKeyNew = compKey & "|CFS|" & sjDiv & "|" & accName & "|" & CStr(periodYears(p)) & "|" & periodRepCodes(p)
-                        If cacheDict.Exists(dataKeyNew) Then
-                            blockData(rIdx, p + 2) = CleanAmount(cacheDict(dataKeyNew))
-                        Else
-                            dataKeyNew = compKey & "|OFS|" & sjDiv & "|" & accName & "|" & CStr(periodYears(p)) & "|" & periodRepCodes(p)
-                            If cacheDict.Exists(dataKeyNew) Then
-                                blockData(rIdx, p + 2) = CleanAmount(cacheDict(dataKeyNew))
-                            Else
-                                dataKeyOld = compKey & "|" & sjDiv & "|" & accName & "|" & CStr(periodYears(p)) & "|" & periodRepCodes(p)
-                                If cacheDict.Exists(dataKeyOld) Then
-                                    blockData(rIdx, p + 2) = CleanAmount(cacheDict(dataKeyOld))
-                                Else
-                                    blockData(rIdx, p + 2) = ""
-                                End If
-                            End If
-                        End If
-                    Else
-                        dataKeyNew = compKey & "|" & fDiv & "|" & sjDiv & "|" & accName & "|" & CStr(periodYears(p)) & "|" & periodRepCodes(p)
-                        dataKeyOld = compKey & "|" & sjDiv & "|" & accName & "|" & CStr(periodYears(p)) & "|" & periodRepCodes(p)
+                    dataKeyNew = compKey & "|" & fDiv & "|" & sjDiv & "|" & accName & "|" & CStr(periodYears(p)) & "|" & periodRepCodes(p)
+                    dataKeyOld = compKey & "|" & sjDiv & "|" & accName & "|" & CStr(periodYears(p)) & "|" & periodRepCodes(p)
 
-                        If cacheDict.Exists(dataKeyNew) Then
-                            blockData(rIdx, p + 2) = CleanAmount(cacheDict(dataKeyNew))
-                        ElseIf cacheDict.Exists(dataKeyOld) Then
-                            blockData(rIdx, p + 2) = CleanAmount(cacheDict(dataKeyOld))
-                        Else
-                            blockData(rIdx, p + 2) = ""
-                        End If
+                    If cacheDict.Exists(dataKeyNew) Then
+                        blockData(rIdx, p + 2) = CleanAmount(cacheDict(dataKeyNew))
+                    ElseIf cacheDict.Exists(dataKeyOld) Then
+                        blockData(rIdx, p + 2) = CleanAmount(cacheDict(dataKeyOld))
+                    Else
+                        blockData(rIdx, p + 2) = ""
                     End If
                 Next p
 
@@ -437,7 +583,7 @@ Public Sub DownloadDartData()
     Exit Sub
 
 ParseError:
-    MsgBox "Failed to parse target date in MAIN!C3. Ensure format is like '2026년 1분기'.", vbCritical
+    MsgBox "Failed to parse target date in MAIN!C3. Ensure format is like '2026" & KoreanYear() & " " & KoreanQuarter1() & "'.", vbCritical
     Exit Sub
 
 CleanFail:
@@ -447,7 +593,7 @@ CleanFail:
     MsgBox "Download failed: " & Err.Description, vbCritical
 End Sub
 
-' Parses dates like "2026년 1분기"
+' Parses dates like "2026 year quarter 1"
 Private Sub ParseTargetDate(ByVal dateStr As String, ByRef outYear As Integer, ByRef outReprtCode As String, ByRef outPeriodName As String)
     Dim regEx As Object
     Set regEx = CreateObject("VBScript.RegExp")
@@ -461,27 +607,27 @@ Private Sub ParseTargetDate(ByVal dateStr As String, ByRef outYear As Integer, B
         Err.Raise vbObjectError + 2001, , "Invalid year format in date string."
     End If
 
-    If InStr(dateStr, "1분기") > 0 Or InStr(dateStr, "1Q") > 0 Then
+    If InStr(dateStr, KoreanQuarter1()) > 0 Or InStr(dateStr, "1Q") > 0 Then
         outReprtCode = "11013"
-        outPeriodName = "1분기"
-    ElseIf InStr(dateStr, "반기") > 0 Or InStr(dateStr, "2분기") > 0 Or InStr(dateStr, "2Q") > 0 Then
+        outPeriodName = KoreanQuarter1()
+    ElseIf InStr(dateStr, KoreanHalf()) > 0 Or InStr(dateStr, KoreanQuarter2()) > 0 Or InStr(dateStr, "2Q") > 0 Then
         outReprtCode = "11012"
-        outPeriodName = "반기"
-    ElseIf InStr(dateStr, "3분기") > 0 Or InStr(dateStr, "3Q") > 0 Then
+        outPeriodName = KoreanHalf()
+    ElseIf InStr(dateStr, KoreanQuarter3()) > 0 Or InStr(dateStr, "3Q") > 0 Then
         outReprtCode = "11014"
-        outPeriodName = "3분기"
-    ElseIf InStr(dateStr, "4분기") > 0 Or InStr(dateStr, "4Q") > 0 Or InStr(dateStr, "연간") > 0 Or InStr(dateStr, "사업") > 0 Then
+        outPeriodName = KoreanQuarter3()
+    ElseIf InStr(dateStr, KoreanQuarter4()) > 0 Or InStr(dateStr, "4Q") > 0 Or InStr(dateStr, KoreanAnnual()) > 0 Or InStr(dateStr, KoreanBusiness()) > 0 Then
         outReprtCode = "11011"
-        outPeriodName = "연간"
+        outPeriodName = KoreanAnnual()
     Else
         ' Fallback to annual
         outReprtCode = "11011"
-        outPeriodName = "연간"
+        outPeriodName = KoreanAnnual()
     End If
 End Sub
 
 ' Downloads and builds the KOSPI/KOSDAQ listed company corp code map in DART_CorpCodes sheet
-' Downloads and builds the KOSPI/KOSDAQ listed company corp code map in DART 내부코드 sheet
+' Downloads and builds the KOSPI/KOSDAQ listed company corp code map in the DART corp-code sheet
 Public Sub InitializeCorpCodes()
     Dim wb As Workbook
     Dim wsMain As Worksheet
@@ -509,14 +655,14 @@ Public Sub InitializeCorpCodes()
         Exit Sub
     End If
 
-    ' Create or clear the DART 내부코드 worksheet
+    ' Create or clear the DART corp-code worksheet
     On Error Resume Next
-    Set wsCorp = wb.Worksheets("DART 내부코드")
+    Set wsCorp = wb.Worksheets(DartCorpCodeSheetName())
     On Error GoTo 0
 
     If wsCorp Is Nothing Then
         Set wsCorp = wb.Worksheets.Add(After:=wsMain)
-        wsCorp.Name = "DART 내부코드"
+        wsCorp.Name = DartCorpCodeSheetName()
     Else
         wsCorp.UsedRange.Clear
     End If
@@ -646,7 +792,7 @@ Public Sub InitializeCorpCodes()
             finalResults(idx, 3) = results(idx, 3)
         Next idx
         wsCorp.Cells(2, 1).Resize(matchCount, 3).Value = finalResults
-        LogMsg "InitializeCorpCodes: Wrote " & matchCount & " listed companies to DART 내부코드 sheet"
+        LogMsg "InitializeCorpCodes: Wrote " & matchCount & " listed companies to DART corp-code sheet"
     End If
 
     ' Delete CORPCODE.xml to save disk space
@@ -656,10 +802,10 @@ Public Sub InitializeCorpCodes()
 
     wsCorp.Columns.AutoFit
     LogMsg "InitializeCorpCodes: Finished"
-    MsgBox "DART 내부코드 초기화 완료. 총 " & matchCount & "개의 회사 정보가 생성되었습니다.", vbInformation
+    MsgBox DartCorpCodeInitDoneMessage(matchCount), vbInformation
 End Sub
 
-' Loads corporate code mapping from DART 내부코드 sheet
+' Loads corporate code mapping from the DART corp-code sheet
 Private Sub LoadCorpCodeMap(ByRef corpMap As Object, ByRef nameMap As Object)
     LogMsg "LoadCorpCodeMap: Started"
     Dim wb As Workbook
@@ -668,24 +814,24 @@ Private Sub LoadCorpCodeMap(ByRef corpMap As Object, ByRef nameMap As Object)
 
     Dim wsCorp As Worksheet
     On Error Resume Next
-    Set wsCorp = wb.Worksheets("DART 내부코드")
+    Set wsCorp = wb.Worksheets(DartCorpCodeSheetName())
     On Error GoTo 0
 
     If wsCorp Is Nothing Then
-        MsgBox "DART 내부코드 시트가 존재하지 않습니다. 먼저 'DART 내부코드 초기화' 매크로를 실행해 주세요.", vbCritical
-        Err.Raise vbObjectError + 2004, , "DART 내부코드 시트 없음"
+        MsgBox DartCorpCodeMissingMessage(), vbCritical
+        Err.Raise vbObjectError + 2004, , DartCorpCodeMissingDescription()
         Exit Sub
     End If
 
     Dim lastRow As Long
     lastRow = wsCorp.Cells(wsCorp.Rows.Count, 1).End(xlUp).Row
     If lastRow < 2 Then
-        MsgBox "DART 내부코드 시트가 비어 있습니다. 먼저 'DART 내부코드 초기화' 매크로를 실행해 주세요.", vbCritical
-        Err.Raise vbObjectError + 2005, , "DART 내부코드 시트 비어있음"
+        MsgBox DartCorpCodeEmptyMessage(), vbCritical
+        Err.Raise vbObjectError + 2005, , DartCorpCodeEmptyDescription()
         Exit Sub
     End If
 
-    LogMsg "LoadCorpCodeMap: Loading cached mapping from DART 내부코드 sheet"
+    LogMsg "LoadCorpCodeMap: Loading cached mapping from DART corp-code sheet"
     ' Load mapping directly from the worksheet using 2D Variant Array (High Performance)
     Dim codeData As Variant
     codeData = wsCorp.Range(wsCorp.Cells(1, 1), wsCorp.Cells(lastRow, 3)).Value
@@ -904,13 +1050,13 @@ Private Sub SendBatchRequest(ByVal apiKey As String, ByVal chunkCodes As Collect
 
         Dim statusDesc As String
         Select Case status
-            Case "010": statusDesc = "미등록 인증키"
-            Case "011": statusDesc = "사용할 수 없는 인증키"
-            Case Else: statusDesc = "기타 에러"
+            Case "010": statusDesc = KoreanUnregisteredKey()
+            Case "011": statusDesc = KoreanInvalidKey()
+            Case Else: statusDesc = KoreanOtherError()
         End Select
 
         Err.Raise vbObjectError + 3010, , "DART Key Error: " & status & " (" & statusDesc & ")" & vbCrLf & _
-                                         "대상 기업: " & compDetails
+                                         KoreanTargetCompany() & compDetails
     Else
         ' "013"/"020" No Data or other status codes: Cache as fetched so we do not query again
         For Each cCode In chunkCodes
@@ -972,21 +1118,18 @@ Private Function SendSingleRequest(ByVal apiKey As String, ByVal corpCode As Str
             accName = Trim$(GetNodeTextSafe(node, "account_nm"))
 
             If Len(xmlCorpCode) > 0 And Len(sjDiv) > 0 And Len(accName) > 0 Then
-                ' Filter to keep BS, IS, CFS. Skip SCE (Statement of Changes in Equity) to avoid cluttering unless needed
-                If sjDiv = "BS" Or sjDiv = "IS" Or sjDiv = "CFS" Then
-                    If reprtCode = "11011" Then ' Annual
-                        thAmt = GetNodeTextSafe(node, "thstrm_amount")
-                        frAmt = GetNodeTextSafe(node, "frmtrm_amount")
-                        bfeAmt = GetNodeTextSafe(node, "bfefrmtrm_amount")
+                If reprtCode = "11011" Then ' Annual
+                    thAmt = GetNodeTextSafe(node, "thstrm_amount")
+                    frAmt = GetNodeTextSafe(node, "frmtrm_amount")
+                    bfeAmt = GetNodeTextSafe(node, "bfefrmtrm_amount")
 
-                        SaveCacheValue cacheDict, xmlCorpCode, xmlFsDiv, sjDiv, accName, yr, "11011", thAmt
-                        SaveCacheValue cacheDict, xmlCorpCode, xmlFsDiv, sjDiv, accName, yr - 1, "11011", frAmt
-                        SaveCacheValue cacheDict, xmlCorpCode, xmlFsDiv, sjDiv, accName, yr - 2, "11011", bfeAmt
-                    Else ' Quarter
-                        thAmt = GetNodeTextSafe(node, "thstrm_amount")
+                    SaveCacheValue cacheDict, xmlCorpCode, xmlFsDiv, sjDiv, accName, yr, "11011", thAmt
+                    SaveCacheValue cacheDict, xmlCorpCode, xmlFsDiv, sjDiv, accName, yr - 1, "11011", frAmt
+                    SaveCacheValue cacheDict, xmlCorpCode, xmlFsDiv, sjDiv, accName, yr - 2, "11011", bfeAmt
+                Else ' Quarter
+                    thAmt = GetNodeTextSafe(node, "thstrm_amount")
 
-                        SaveCacheValue cacheDict, xmlCorpCode, xmlFsDiv, sjDiv, accName, yr, reprtCode, thAmt
-                    End If
+                    SaveCacheValue cacheDict, xmlCorpCode, xmlFsDiv, sjDiv, accName, yr, reprtCode, thAmt
                 End If
             End If
         Next node
@@ -1009,13 +1152,13 @@ Private Function SendSingleRequest(ByVal apiKey As String, ByVal corpCode As Str
 
         Dim singleStatusDesc As String
         Select Case status
-            Case "010": singleStatusDesc = "미등록 인증키"
-            Case "011": singleStatusDesc = "사용할 수 없는 인증키"
-            Case Else: singleStatusDesc = "기타 에러"
+            Case "010": singleStatusDesc = KoreanUnregisteredKey()
+            Case "011": singleStatusDesc = KoreanInvalidKey()
+            Case Else: singleStatusDesc = KoreanOtherError()
         End Select
 
         Err.Raise vbObjectError + 3010, , "DART Key Error: " & status & " (" & singleStatusDesc & ")" & vbCrLf & _
-                                         "대상 기업: " & singleCompName & "(" & singleStockCode & ")"
+                                         KoreanTargetCompany() & singleCompName & "(" & singleStockCode & ")"
     Else
         ' "013"/"020" No Data or other status codes: Cache as fetched so we do not query again
         MarkFetched cacheDict, corpCode, fsDiv, yr, reprtCode
@@ -1035,18 +1178,10 @@ End Function
 
 ' Normalizes DART statement division codes for display and cache keys
 Private Function NormalizeStatementDiv(ByVal sjDiv As String) As String
-    sjDiv = UCase$(Trim$(sjDiv))
-    Select Case sjDiv
-        Case "CIS"
-            NormalizeStatementDiv = "IS"
-        Case "CF"
-            NormalizeStatementDiv = "CFS"
-        Case Else
-            NormalizeStatementDiv = sjDiv
-    End Select
+    NormalizeStatementDiv = UCase$(Trim$(sjDiv))
 End Function
 
-' Returns the desired output statement order: BS, IS, CFS
+' Returns the desired output statement order: BS, IS, CIS, CF, SCE
 Private Function StatementDivByOrder(ByVal orderIdx As Integer) As String
     Select Case orderIdx
         Case 1
@@ -1054,9 +1189,21 @@ Private Function StatementDivByOrder(ByVal orderIdx As Integer) As String
         Case 2
             StatementDivByOrder = "IS"
         Case 3
-            StatementDivByOrder = "CFS"
+            StatementDivByOrder = "CIS"
+        Case 4
+            StatementDivByOrder = "CF"
+        Case 5
+            StatementDivByOrder = "SCE"
         Case Else
             StatementDivByOrder = ""
+    End Select
+End Function
+
+' True for the statement divisions we place in a fixed order.
+Private Function IsKnownStatementDiv(ByVal sjDiv As String) As Boolean
+    Select Case UCase$(Trim$(sjDiv))
+        Case "BS", "IS", "CIS", "CF", "SCE"
+            IsKnownStatementDiv = True
     End Select
 End Function
 
@@ -1068,6 +1215,33 @@ Private Function FsDivMatches(ByVal cachedFsDiv As String, ByVal requestedFsDiv 
         FsDivMatches = (cachedFsDiv = requestedFsDiv)
     End If
 End Function
+
+Private Function ResolveAutoFsDiv(ByRef cacheDict As Object, ByVal corpCode As String) As String
+    Dim key As Variant
+    Dim parts() As String
+    Dim hasCfs As Boolean
+    Dim hasOfs As Boolean
+
+    For Each key In cacheDict.Keys
+        parts = Split(CStr(key), "|")
+        If UBound(parts) = 5 And parts(0) = corpCode Then
+            If parts(1) = "CFS" Then
+                hasCfs = True
+            ElseIf parts(1) = "OFS" Then
+                hasOfs = True
+            End If
+        End If
+    Next key
+
+    If hasCfs Then
+        ResolveAutoFsDiv = "CFS"
+    ElseIf hasOfs Then
+        ResolveAutoFsDiv = "OFS"
+    Else
+        ResolveAutoFsDiv = "CFS"
+    End If
+End Function
+
 ' Helper to write a value into cache dictionaries
 Private Sub SaveCacheValue(ByRef cacheDict As Object, ByVal corpCode As String, ByVal fsDiv As String, ByVal sjDiv As String, ByVal accName As String, ByVal yr As Integer, ByVal repCode As String, ByVal amt As String)
     Dim key As String
