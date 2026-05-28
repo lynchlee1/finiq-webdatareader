@@ -1,0 +1,14 @@
+Starting Excel instance...
+Opening workbook: C:\Users\ASUS\Desktop\finiq-webdatareader\opendart-to-excel\example.xlsm
+Running macro: DownloadDartData
+Error running macro:
+Traceback (most recent call last):
+  File "C:\Users\ASUS\Desktop\finiq-webdatareader\run_macro.py", line 19, in test_macro
+    excel.Run("DownloadDartData")
+    ~~~~~~~~~^^^^^^^^^^^^^^^^^^^^
+  File "<COMObject Excel.Application>", line 8, in Run
+  File "C:\Users\ASUS\AppData\Roaming\Python\Python314\site-packages\win32com\client\dynamic.py", line 356, in _ApplyTypes_
+    result = self._oleobj_.InvokeTypes(
+        *(dispid, LCID, wFlags, retType, argTypes) + args
+    )
+pywintypes.com_error: (-2147352567, '예외가 발생했습니다.', (0, None, None, None, 0, -2146788248), None)
